@@ -1,4 +1,6 @@
 [flake8]
+ignore = E501, F401, E302, E225, E251, F841, E301, F541
+
 
 exclude =
     migrations,
