@@ -86,16 +86,17 @@ class Motorista(models.Model):
     telefone = PhoneNumberField(region="MZ", unique=True, null=True, blank=True)
     endereco = models.CharField(max_length=255, null=True, blank=True)
     carta_conducao = models.CharField(
-        max_length=20,
+        max_length=20, unique=True,
         validators=[validador_carta]
     )
     validade_da_carta = models.DateField(null=True, blank=False)
+    salario = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.0'))], default=Decimal('0.00'))
     ativo = models.BooleanField(default=True, db_index=True)
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
 
     @property
-    def idade(self):
+    def idade(self)->int:
         """Calcula a idade baseada na data de nascimento"""
         if not self.data_nascimento:
             return 0
@@ -112,6 +113,10 @@ class Motorista(models.Model):
             raise ValidationError("O motorista deve ter pelo menos 18 anos.")
         if self.validade_da_carta < hoje:
             raise ValidationError("A carta de condução está expirada.")
+        if self.salario < 0:
+            raise ValidationError("O salario nao pode ser negativo.")
+        if self.user.role != "MOTORISTA" and self.salario and self.salario > 0:
+            raise ValidationError("Somente motoristas podem ter salário definido.")
 
     def __str__(self):
         return f"Motorista: {self.user.nome} - {self.user.email}"
@@ -119,5 +124,5 @@ class Motorista(models.Model):
     def save(self, *args, **kwargs):
         if self.endereco:
             self.endereco = self.endereco.strip()
-            self.full_clean()
+        self.full_clean()
         super().save(*args, **kwargs)

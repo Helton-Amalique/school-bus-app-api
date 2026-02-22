@@ -7,6 +7,7 @@ from decimal import Decimal
 from django.core.validators import EmailValidator
 from django.contrib.auth.models import (AbstractBaseUser,
                                         BaseUserManager,
+                                        PermissionsMixin,
                                         Group,
                                         Permission)
 
@@ -14,48 +15,52 @@ validar_email = EmailValidator(message="O campo de email deve conter um endereç
 
 class UserManager(BaseUserManager):
     """Manager users"""
-    def create_user(self, email, nome, password=None, **extra_fields):
+    def create_user(self, email, nome, role, password=None, **extra_fields):
         """cria, salva, e retorna um novo user"""
         if not email:
             raise ValueError("O campo de email é obrigatório.")
         if not nome:
             raise ValueError("O campo de nome é obrigatório.")
+        if not role:
+            raise ValueError("O campo de cargo é obrigatório.")
         if password and len(password) < 8:
             raise ValueError("A senha deve conter pelo menos 8 caracteres.")
 
         email = self.normalize_email(email).lower().strip()
         nome = nome.strip().title()
-
-        user = self.model(email=email, **extra_fields)
+        user = self.model(email=email, nome=nome, role=role, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
         return user
 
     def create_superuser(self, email, nome, password, **extra_fields):
         """criar e retorna um novo super usuario"""
+
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         extra_fields.setdefault('is_active', True)
 
-        return self.create_user(email, nome, role=User.cargo.ADMIN, password=password, **extra_fields)
+        return self.create_user(email, nome, role=User.Cargo.ADMIN, password=password, **extra_fields)
 
 
-class User(AbstractBaseUser):
+class User(AbstractBaseUser, PermissionsMixin):
 
     class Cargo(models.TextChoices):
-        DMIN = "ADMIN", "Administrador"
+        ADMIN = "ADMIN", "Administrador"
         ALUNO = "ALUNO", "Aluno"
         ENCARREGADO = "ENCARREGADO", "Encarregado"
         MOTORISTA = "MOTORISTA", "Motorista"
 
     username = None
-    email = models.EmailField(unique=True)
+    email = models.EmailField(unique=True, validators=[validar_email], error_messages={'unique': "Este email já está em uso."})
     nome = models.CharField(max_length=255)
     role = models.CharField(max_length=20, choices=Cargo.choices, default=Cargo.ADMIN)
-
-    salario = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, default=Decimal("0.00"), help_text="Salário do usuário (se vazio, aplica valor padrão).")
     data_criacao = models.DateTimeField(default=timezone.now, editable=False)
     data_atualizacao = models.DateTimeField(auto_now=True, editable=False)
+
+    is_active = models.BooleanField(default=True)
+    is_staff = models.BooleanField(default=False)
+    is_superuser = models.BooleanField(default=False)
 
     groups = models.ManyToManyField(
         Group,
@@ -79,7 +84,7 @@ class User(AbstractBaseUser):
             self.nome = self.nome.strip().title()
         if self.email:
             self.email = self.email.strip().lower()
-            super().save(*args, **kwargs)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.nome} - {self.email} ({self.get_role_display()})"

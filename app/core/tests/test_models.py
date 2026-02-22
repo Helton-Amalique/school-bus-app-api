@@ -150,3 +150,24 @@ class MotoristaModelTest(TestCase):
         with self.assertRaises(ValidationError) as context:
             motorista.full_clean()
         self.assertIn("A carta de condução está expirada.", str(context.exception))
+
+    def test_motorista_salario_negativo(self):
+        motorista_user = User.objects.create_user(
+            email="motorista_salario@exemplo.com",
+            nome="Carlos Mendonsa",
+            role=User.Cargo.MOTORISTA,
+            password="senha123"
+        )
+        motorista = Motorista(
+            user=motorista_user,
+            data_nascimento=date.today() - timedelta(days = 365 * 30),
+            nrBI="123456789012G",
+            carta_conducao="987654321",
+            validade_da_carta=date.today() + timedelta(days = 365 * 5),
+            telefone="+258821234500",
+            endereco="Rua Teste, 123",
+            salario=Decimal("-12000.00")
+        )
+        with self.assertRaises(ValidationError) as context:
+            motorista.full_clean()
+        self.assertIn("O salario nao pode ser negativo.", str(context.exception))
