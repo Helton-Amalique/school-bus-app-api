@@ -42,4 +42,6 @@ class IsMotorista(BasePermission):
     def has_object_permission(self, request, view, obj):
         if hasattr(obj, "user"):
             return obj.user == request.user
+        if hasattr(obj, "rota"):
+            return obj.rota.veiculo.motorista.user == request.user
         return False

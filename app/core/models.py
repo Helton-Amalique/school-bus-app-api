@@ -111,7 +111,7 @@ class Motorista(models.Model):
             raise ValidationError("A data de nascimento não pode ser no futuro.")
         if self.idade < 18:
             raise ValidationError("O motorista deve ter pelo menos 18 anos.")
-        if self.validade_da_carta < hoje:
+        if self.validade_da_carta and self.validade_da_carta < hoje:
             raise ValidationError("A carta de condução está expirada.")
         if self.salario < 0:
             raise ValidationError("O salario nao pode ser negativo.")
