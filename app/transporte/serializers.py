@@ -14,7 +14,8 @@ class VeiculoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Veiculo
-        fields = ['id', 'marca', 'modelo', 'matricula', 'capacidade', 'vagas_disponiveis', 'motorista_nome', 'estado_lotacao', 'ativo']
+        fields = '__all__'
+        # fields = ['id', 'marca', 'modelo', 'matricula', 'capacidade', 'vagas_disponiveis', 'motorista_nome', 'estado_lotacao', 'ativo']
 
     def get_estado_lotacao(self, obj) -> str:
         vagas = obj.vagas_disponiveis
@@ -38,7 +39,8 @@ class RotaSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Rota
-        fields = ['id', 'nome', 'veiculo_info', 'hora_partida', 'hora_chegada', 'alunos', 'aluno_count', 'ativo']
+        fields = '__all__'
+        # fields = ['id', 'nome', 'veiculo_info', 'hora_partida', 'hora_chegada', 'alunos', 'aluno_count', 'ativo']
 
     def validate(self, data):
         """validacao cruzada: Capacidade vs Alunos"""
@@ -58,7 +60,8 @@ class CheckInSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TransporteAluno
-        fiellds = ['id', 'aluno_nome', 'foto_aluno', 'status', 'data']
+        fields = '__all__'
+        # fiellds = ['id', 'aluno_nome', 'foto_aluno', 'status', 'data']
         read_only_fields = ['aluno_nome', 'data']
 
     def validate_status(self, value):

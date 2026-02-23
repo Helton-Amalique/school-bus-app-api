@@ -75,8 +75,8 @@ class Rota(models.Model):
             raise ValidationError({"veiculo": "O veiculo selecionado esta inativo."})
         if self.hora_chegada <= self.hora_partida:
             raise ValidationError({"hora_chegada": "A hora de chagada deve ser posterior a hora de partida"})
-        if self.veiculo and self.alunos.count() > self.veiculo.capacidade:
-            raise ValidationError({"alunos": "Numero de alunos excede a capacidade do veiculo"})
+        # if self.veiculo and self.alunos.count() > self.veiculo.capacidade:
+        #     raise ValidationError({"alunos": "Numero de alunos excede a capacidade do veiculo"})
         # if self.veiculo and self.veiculo.rotas.filter(ativo=True).exclude(pk=self.pk).exists():
         #     raise ValidationError({"veiculo": "Este veiculo ja possui um rota ativa"})
 

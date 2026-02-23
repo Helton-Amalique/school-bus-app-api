@@ -17,7 +17,7 @@ class VeiculoViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
-            return [IsAdmin() | IsMotorista()]
+            return [(IsAdmin | IsMotorista)()]
         return [IsAdmin()]
 
 class RotaViewSet(viewsets.ModelViewSet):
@@ -33,9 +33,8 @@ class RotaViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
-            return [IsAdmin() | IsMotorista()]
+            return [(IsAdmin | IsMotorista)()]
         return [IsAdmin()]
-
 class TransportViewSet(viewsets.ModelViewSet):
     serializer_class = CheckInSerializer
 
@@ -49,5 +48,5 @@ class TransportViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['list', 'retrieve', 'partial_update']:
-            return [IsAdmin() | IsMotorista()]
+            return [(IsAdmin | IsMotorista)()]
         return [IsAdmin()]
