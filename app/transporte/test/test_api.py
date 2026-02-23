@@ -76,11 +76,6 @@ class TransportesErrorAPITests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         # self.assertEqual(res.data[0]["vagas_disponiveis"], 20)
 
-
-
-
-
-
     def test_vagas_disponiveis_com_alunos(self):
         """Endpoint deve retornar vagas corretas quando há rota com alunos"""
         veiculo = self.veiculo_mot
@@ -97,12 +92,6 @@ class TransportesErrorAPITests(TestCase):
         data = next(item for item in res.data if item["id"] == self.veiculo_mot.id)
         self.assertEqual(data["vagas_disponiveis"], 13)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-
-
-
-
-
-
 
     def test_vagas_disponiveis_nao_negativas(self):
         """Endpoint deve garantir que vagas_disponiveis nunca seja negativo, mesmo com mais alunos que capacidade"""
