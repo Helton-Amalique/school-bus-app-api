@@ -1,5 +1,10 @@
 from django.test import TestCase
-
+from core.models import Motorista
+from django.core import mail
+from django.core.management import call_command
+from django.utils import timezone
+# from transporte.models import Motorista
+from datetime import timedelta, date
 from rest_framework.test import APIClient
 from rest_framework import status
 
@@ -58,56 +63,55 @@ class PublicUserApiTests(TestCase):
         response = self.client.post(CREATE_USER_URL, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-def test_para_criar_usuario_com_senha_curta(self):
-    """Erro de a senha for inferior a o limite (ex: 8 carateres)"""
-    payload = {
-        "email": "test@examplo.com",
-        "password": "pw",
-        "nome": "Test User",
-    }
-    resp = self.client.post(CREATE_USER_URL, payload)
-    self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
-    user_exist = user().objects.filter(email=payload["email"]).exists()
-    self.assertFalse(user_exist)
+    def test_para_criar_usuario_com_senha_curta(self):
+        """Erro de a senha for inferior a o limite (ex: 8 carateres)"""
+        payload = {
+            "email": "test@examplo.com",
+            "password": "pw",
+            "nome": "Test User",
+        }
+        resp = self.client.post(CREATE_USER_URL, payload)
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        user_exist = user.objects.filter(email=payload["email"]).exists()
+        self.assertFalse(user_exist)
 
-def create_token_for_user(self):
-    """Teste para obter token com credencias validas"""
-    user_details = {
-        "nome": "Test User",
-        "email": "test@exemplo.com",
-        "password": "testpassword123",
-    }
-    create_user(**user_details)
+    def test_create_token_for_user(self):
+        """Teste para obter token com credencias validas"""
+        user_details = {
+            "nome": "Test User",
+            "email": "test@exemplo.com",
+            "password": "testpassword123",
+        }
+        create_user(**user_details)
 
-    payload = {
-        "email": user_details["email"],
-        "password": user_details["password"],
-    }
-    res = self.client.post(TOKEN_URL, payload)
-    self.assertEqual(res.status_code, status.HTTP_200_OK)
-    self.assertIn("access", res.data)
+        payload = {
+            "email": user_details["email"],
+            "password": user_details["password"],
+        }
+        res = self.client.post(TOKEN_URL, payload)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertIn("token", res.data)
 
-def create_token_bad_credentials(self):
-    """Erro ao tentar obter token com senha errada"""
-    create_user(email="test@exemplo.com", password="goodpass")
-    payload = {"email": 'test@exemplo.com', "password": "badpass"}
-    res = self.client.post(TOKEN_URL, payload)
-    self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
-    self.assertNotIn('token', res.data)
+    def test_create_token_bad_credentials(self):
+        """Erro ao tentar obter token com senha errada"""
+        create_user(email="test@exemplo.com", password="goodpass")
+        payload = {"email": 'test@exemplo.com', "password": "badpass"}
+        res = self.client.post(TOKEN_URL, payload)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn('token', res.data)
 
+    def test_create_token_password_vazio(self):
+        """password vazio retorna erro"""
+        payload = {'email': 'test@exemplo.com', 'password': ''}
+        res = self.client.post(TOKEN_URL, payload)
 
-def test_create_token_password_vazio(self):
-    """password vazio retorna erro"""
-    payload = {'email': 'test@exemplo.com', 'password': ''}
-    res = self.client.post(TOKEN_URL, payload)
+        self.assertNotIn('token', res.data)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
-    self.assertNotIn('token', res.data)
-    self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
-
-def test_usuario_nao_autorizado(self):
-    """test de autenticacao e necessario para usuarios"""
-    res = self.client.get(ME_URL)
-    self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+    def test_usuario_nao_autorizado(self):
+        """test de autenticacao e necessario para usuarios"""
+        res = self.client.get(ME_URL)
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 class PrivateApiTests(TestCase):
@@ -149,6 +153,30 @@ class PrivateApiTests(TestCase):
         self.assertTrue(self.user.check_password(payload['password']))
         self.assertEqual(self.user.role, payload['role'])
         self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+    def test_comando_alertar_carta_expirada(self):
+        """Testa se o comando de notificar carta expirada funciona sem erros"""
+        # Criar um motorista com carta expirada
+        data_alerta = date.today() + timedelta(days=30)
+        user_exp = User.objects.create_user(email="alerta@test.com", password="passtest", role="MOTORISTA", nome="Motorista Alerta")
+
+        motorista_exp = Motorista.objects.create(
+            user=user_exp,
+            data_nascimento="1985-01-01",
+            nrBI="111221113311E",
+            carta_conducao="999000999",
+            validade_da_carta=data_alerta,  # Carta expirada
+        )
+        call_command('notificar_cartas_expiradas')
+
+        # self.assertEqual(len(mail.outbox), 1)
+        # self.assertIn("Carta de Condução Próxima de Expirar", mail.outbox[0].subject)
+        # self.assertIn("Motorista Alerta", mail.outbox[0].body)
+
+        self.assertTrue(len(mail.outbox) >= 1)
+        primeiro_email = mail.outbox[0]
+        self.assertEqual(primeiro_email.subject, "Carta de Condução Próxima de Expirar")
+        self.assertIn("Motorista Alerta", primeiro_email.body)
 
 # class RolePermissionsTests(APITestCase):
 

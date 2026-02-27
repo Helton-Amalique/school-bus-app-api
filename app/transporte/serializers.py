@@ -1,7 +1,20 @@
 from rest_framework import serializers
-from transporte.models import Veiculo, Rota, TransporteAluno
+from transporte.models import Veiculo, Rota, TransporteAluno, Manutencao
 from core.serializers import AlunoSerializer
 from django.utils import timezone
+
+
+class ManutencaoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Manutencao
+        fields = '__all__'
+        read_only_fields = ['id', 'concluida']
+
+    def validade(self, data):
+        if data.get('data_fim') and data['data_fim'] < data['data_inicio']:
+            raise serializers.ValidationError("A data de fim deve ser posterior a data de início.")
+        return data
+
 
 class VeiculoSerializer(serializers.ModelSerializer):
     """Mostra a saude do veiculo

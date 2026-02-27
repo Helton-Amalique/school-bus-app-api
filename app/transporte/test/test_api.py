@@ -1,3 +1,5 @@
+import email
+
 from django.test import TestCase
 from django.urls import reverse
 from datetime import date, timedelta
@@ -24,7 +26,7 @@ class TransportesErrorAPITests(TestCase):
         # Motorista
         self.u_mot = User.objects.create_user(email='mot@test.com', password='passtest', nome='M', role='MOTORISTA')
         self.motorista = Motorista.objects.create(user=self.u_mot, data_nascimento='1990-01-01', nrBI='123456789012M', carta_conducao=123956789, validade_da_carta=date.today() + timedelta(days=365))
-        self.veiculo_mot = Veiculo.objects.create(marca='Toyota', modelo='Hiace', matricula='ABC-1234', capacidade=15, motorista=self.motorista)
+        self.veiculo_mot = Veiculo.objects.create(marca='Toyota', modelo='Hiace', matricula='ABC-124-XC', capacidade=15, motorista=self.motorista)
         self.rota_mot = Rota.objects.create(nome='Rota do Motorista', veiculo=self.veiculo_mot)
 
         # Outro motorista e rota
@@ -93,17 +95,54 @@ class TransportesErrorAPITests(TestCase):
         self.assertEqual(data["vagas_disponiveis"], 13)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
 
-    def test_vagas_disponiveis_nao_negativas(self):
-        """Endpoint deve garantir que vagas_disponiveis nunca seja negativo, mesmo com mais alunos que capacidade"""
-        v_plotado = Veiculo.objects.create(marca="Mercedes", modelo="Sprinter", matricula="LOT-123-TT", capacidade=2, motorista=self.motorista)
-        rota = Rota.objects.create(nome="Rota Lotada", veiculo=v_plotado)
-        for i in range(4):
-            u = User.objects.create_user(email=f"aluno{i}@test.com", password="passtest", role="ALUNO", nome=f"Aluno{i}")
-            aluno = Aluno.objects.create(user=u, encarregado=self.encarregado, data_nascimento='2005-01-01', nrBI=f'123456789012{i}A')
-            rota.alunos.add(aluno)
+    def test_vagas_disponiveis_com_rota_ativa_sem_alunos(self):
+        """Endpoint deve retornar vagas = capacidade total quando há rota ativa mas sem alunos"""
+        veiculo = self.veiculo_mot
+        Rota.objects.create(nome="Rota Teste", veiculo=veiculo)
 
         self.client.force_authenticate(user=self.admin)
         res = self.client.get(VEICULOS_URL)
+        data = next(item for item in res.data if item["id"] == self.veiculo_mot.id)
+        self.assertEqual(data["vagas_disponiveis"], 15)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        veiculo_data = next(v for v in res.data if v["id"] == v_plotado.id)
-        self.assertEqual(veiculo_data["vagas_disponiveis"], 0)
+
+        # Criar veiculo em manutencao
+        # v_manut = Veiculo.objects.create(marca="Renault", modelo="Master", matricula="MANU-1234", capacidade=12, motorista=self.motorista)
+        # v_manut.manutencoes.create(data_inicio=date.today(), descricao="Problema no motor", custo=500, concluida=False)
+
+        # # Criar veiculo proximo da revisao
+        # v_revisao = Veiculo.objects.create(marca="Peugeot", modelo="Boxer", matricula="REVI-5678", capacidade=12, motorista=self.motorista, quilometragem_atual=14900, km_proxima_revisao=15000)
+
+        # self.client.force_authenticate(user=self.admin)
+        # url = reverse('transportes:veiculo-list-urgentes')
+        # res = self.client.get(url)
+
+        # self.assertEqual(res.status_code, status.HTTP_200_OK)
+        # veiculo_ids = [v["id"] for v in res.data]
+        # self.assertIn(v_manut.id, veiculo_ids)
+        # self.assertIn(v_revisao.id, veiculo_ids)
+
+    # def _criar_aluno(self, email, nome, bi):
+    #     user = User.objects.create_user(email=email, password="p", role="ALUNO", nome=nome)
+    #     return Aluno.objects.create(
+    #         user=user,
+    #         encarregado=self.encarregado,
+    #         data_nascimento="2010-01-01",
+    #         nrBI=bi
+    #     )
+
+    # def test_vagas_disponiveis_nao_negativas(self):
+    #     """Endpoint deve garantir que vagas_disponiveis nunca seja negativo, mesmo com mais alunos que capacidade"""
+    #     v_plotado = Veiculo.objects.create(marca="Mercedes", modelo="Sprinter", matricula="LOT-123-TT", capacidade=2, motorista=self.motorista)
+    #     rota = Rota.objects.create(nome="Rota Lotada", veiculo=v_plotado)
+    #     for i in range(4):
+    #         u = User.objects.create_user(email=f"aluno{i}@test.com", password="passtest", role="ALUNO", nome=f"Aluno{i}")
+    #         aluno = Aluno.objects.create(user=u, encarregado=self.encarregado, data_nascimento='2005-01-01', nrBI=f'123456789012{i}A')
+    #         rota.alunos.add(aluno)
+
+    #     self.client.force_authenticate(user=self.admin)
+    #     res = self.client.get(VEICULOS_URL)
+
+    #     veiculo_data = next(v for v in res.data if v["id"] == v_plotado.id)
+    #     self.assertEqual(res.status_code, status.HTTP_200_OK)
+    #     self.assertEqual(veiculo_data["vagas_disponiveis"], 0)

@@ -1,11 +1,15 @@
 from rest_framework import viewsets, permissions
-from transporte.models import Veiculo, Rota, TransporteAluno
-from transporte.serializers import VeiculoSerializer, RotaSerializer, CheckInSerializer
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework import status
+from transporte.models import Veiculo, Rota, TransporteAluno, Manutencao
+from transporte.serializers import VeiculoSerializer, RotaSerializer, CheckInSerializer, ManutencaoSerializer
 from accounts.permissions import IsAdmin, IsMotorista
 
 class VeiculoViewSet(viewsets.ModelViewSet):
     queryset = Veiculo.objects.all()
     serializer_class = VeiculoSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         user = self.request.user
@@ -22,6 +26,7 @@ class VeiculoViewSet(viewsets.ModelViewSet):
 
 class RotaViewSet(viewsets.ModelViewSet):
     serializer_class = RotaSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         user = self.request.user
@@ -37,6 +42,7 @@ class RotaViewSet(viewsets.ModelViewSet):
         return [IsAdmin()]
 class TransportViewSet(viewsets.ModelViewSet):
     serializer_class = CheckInSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         user = self.request.user
@@ -50,3 +56,28 @@ class TransportViewSet(viewsets.ModelViewSet):
         if self.action in ['list', 'retrieve', 'partial_update']:
             return [(IsAdmin | IsMotorista)()]
         return [IsAdmin()]
+
+
+class ManutencaoViewSet(viewsets.ModelViewSet):
+    serializer_class = ManutencaoSerializer
+    queryset = Manutencao.objects.all().select_related('veiculo')
+    permission_classes = [permissions.IsAuthenticated]
+
+    @action(detail=True, methods=["post"], url_path='concluir')
+    def concluir(self, request, pk=None):
+        manutencao = self.get_object()
+        if manutencao.concluida:
+            return Response(
+                {"erro,", "Esta manuntencao ja foi concluida anteriormente."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        manutencao.concluir_manutencao()
+
+        return Response(
+            {
+                "status": "Manutencao concluida com sucesso.",
+                "veiculo": manutencao.veiculo.matricula,
+                "proxima_revisao": manutencao.veiculo.km_proxima_revisao,
+                "sucesso": True},
+            status=status.HTTP_200_OK
+        )
