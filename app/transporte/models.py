@@ -27,10 +27,8 @@ class Veiculo(models.Model):
         validators=[MinValueValidator(1), MaxValueValidator(50, message="A capacidade do veículo deve ser menor ou igual a 50.")],
         help_text='Número máximo de passageiros'
     )
-
     motorista = models.ForeignKey(Motorista, on_delete=models.PROTECT, null=True, blank=True, related_name='veiculos')
     ativo = models.BooleanField(default=True, db_index=True)
-
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
 
@@ -38,12 +36,23 @@ class Veiculo(models.Model):
     data_ultima_revisao = models.DateField(null=True, blank=True, help_text='Data da ultima revisao')
     km_proxima_revisao = models.PositiveIntegerField(default=10000, help_text='Quilometragem para a proxima revisao')
 
+    data_validade_seguro = models.DateField(null=True, blank=False, help_text="Data de validade do seguro do veiculo")
+    data_validade_inspecao = models.DateField(null=True, blank=False, help_text="Data de validade da inspeção do veiculo")
+    nr_manifesto = models.CharField(max_length=20, null=True, blank=True, help_text="Número do manifesto do veículo")
+    data_validade_manifesto = models.DateField(null=True, blank=True, help_text="Data de validade do manifesto do veículo")
+
     objects = VeiculoManager()
 
     class Meta:
         verbose_name = "Veiculo"
         verbose_name_plural = "Veiculos"
         ordering = ["matricula"]
+
+    def document_em_dia(self):
+        hoje = datetime.date.today()
+        if not all([self.data_validade_seguro, self.data_validade_inspecao, self.data_validade_manifesto]):
+            return False
+        return self.data_validade_seguro >= self.data_validade_inspecao >= hoje
 
     def clean(self):
         super().clean()
@@ -80,6 +89,15 @@ class Veiculo(models.Model):
     def em_manutencao(self):
         return self.manutencoes.filter(concluida=False).exists()
 
+    def consumo_medio(self):
+        ultimos = self.abastecimento.order_by('-quilometragem_no_ato')[:2]
+        if ultimos.count() < 2:
+            return 0
+
+        distancia = ultimos[0].quilometragem_no_ato - ultimos[1].quilometragem_no_ato
+        return round(distancia / float(ultimos[0].litros), 2)
+
+
     def __str__(self):
         return f"{self.modelo} - {self.matricula}"
 
@@ -114,14 +132,22 @@ class Rota(models.Model):
             raise ValidationError({"veiculo": "Este veículo está em manutenção."})
         if self.veiculo.capacidade > 50:
             raise ValidationError({"veiculo": "A capacidade do veículo deve ser no máximo 50 passageiros."})
+
+        if not self.veiculo.document_em_dia:
+            raise ValidationError({"veiculo": "Este veiculo possui seguro ou inspeção vencida, nao pode realizar rotas."})
+        if self.veiculo.motorista and self.veiculo.motorista.carta_conducao_vencida():
+            raise ValidationError({"veiculo": "O motorista do veículo possui carta de condução vencida, não pode realizar rotas."})
+
         if self.ativo:
             rota_conflito = Rota.objects.filter(veiculo=self.veiculo, ativo=True).exclude(pk=self.pk)
-            if rota_conflito.exists():
-                raise ValidationError({"veiculo": "Este veículo já possui uma rota ativa."})
+            for outra_rota in rota_conflito:
+                if (self.hora_partida < outra_rota.hora_chegada and self.hora_chegada > outra_rota.hora_partida):
+                    raise ValidationError({"hora_partida": f"O conflito de turno com a rota {outra_rota.nome} das {outra_rota.hora_partida} às {outra_rota.hora_chegada}."})
 
-        rota_confilito = Rota.objects.filter(veiculo=self.veiculo, ativo=True).exclude(pk=self.pk)
-        if rota_confilito.exists():
-            raise ValidationError({"veiculo": "Este veiculo ja possui uma rota ativa"})
+        rotas_do_dia = Rota.objects.filter(veiculo=self.veiculo, ativo=True).exclude(pk=self.pk)
+        for outra in rotas_do_dia:
+            if (self.hora_partida < outra.hora_chegada and self.hora_chegada > outra.hora_partida):
+                raise ValidationError({"hora_partida": f"O conflito de Turno com a rota {outra.nome} das {self.hora_partida} as {self.hora_chegada}."})
 
     @property
     def motorista(self):
@@ -189,12 +215,33 @@ class Manutencao(models.Model):
         self.veiculo.save()
         self.save()
 
-    # def clean(self):
-    #     super().clean()
-    #     if self.data_fim and self.data_inicio and self.data_fim < self.data_inicio:
-    #         raise ValidationError({"data_fim": "A data de fim deve ser posterior a data de início."})
-    #     if self.quilometragem_no_momento_revisao < self.veiculo.quilometragem_atual:
-    #         raise ValidationError({"quilometragem_no_momento_revisao": f"A quilometragem no momento da revisão não pode ser menor que a quilometragem atual do veículo ({self.veiculo.quilometragem_atual})."})
-
     def __str__(self):
         return f"{self.veiculo.matricula} - {self.descricao[:30]}"
+
+class Abastecimento(models.Model):
+    veiculo = models.ForeignKey(Veiculo, on_delete=models.CASCADE, related_name="abastecimentos")
+    data = models.DateField(auto_now_add=True)
+    quilometragem_no_ato = models.PositiveIntegerField(default=0, help_text='Quilometragem do veículo no momento do abastecimento')
+    quantidade_litros = models.DecimalField(max_digits=5, decimal_places=2)
+    custo_total = models.DecimalField(max_digits=10, decimal_places=2)
+    posto_combustivel = models.CharField(max_length=100)
+
+    class Meta:
+        verbose_name = "Abastecimento"
+        verbose_name_plural = "Abastecimentos"
+        ordering = ["-data", "-quilometragem_no_ato"]
+
+    def clean(self):
+        super().clean()
+        if self.quilometragem_no_ato < self.veiculo.quilometragem_atual:
+            raise ValidationError({"quilometragem_no_ato": "A quilometragem no ato do abastecimento não pode ser menor que a quilometragem atual do veículo."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        if self.quilometragem_no_ato > self.veiculo.quilometragem_atual:
+            self.veiculo.quilometragem_atual = self.quilometragem_no_ato
+            self.veiculo.save()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.veiculo.matricula} - Abastecimento em {self.data} - {self.quantidade_litros}L"

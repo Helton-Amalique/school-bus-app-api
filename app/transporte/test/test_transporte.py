@@ -1,5 +1,5 @@
 import datetime
-from datetime import date, timedelta
+from datetime import date, timedelta, time
 from django.test import TestCase
 from core.models import Motorista, Aluno, Encarregado
 from transporte.models import Veiculo, Rota, Manutencao
@@ -22,7 +22,9 @@ class TransportTestCase(TestCase):
             marca="Toyota", modelo="Hiace",
             matricula="AOC-785-MP",
             capacidade=25,
-            motorista=self.motorista
+            motorista=self.motorista,
+            data_validade_seguro=date.today() + timedelta(days=365),
+            data_validade_inspecao=date.today() + timedelta(days=180)
         )
         self.u_enc = User.objects.create_user(email="enc@test.com", password="passtest", role="ENCARREGADO", nome='Encarrgedo Teste')
         self.encarregado = Encarregado.objects.create(user=self.u_enc, nrBI="123456789012E")
@@ -53,7 +55,9 @@ class TransportTestCase(TestCase):
             modelo="Hiace",
             matricula="MMW-123-MC",
             capacidade=15,
-            motorista=novo_motorista
+            motorista=novo_motorista,
+            data_validade_seguro=date.today() + timedelta(days=365),
+            data_validade_inspecao=date.today() + timedelta(days=180)
         )
 
         veiculo.full_clean()
@@ -65,21 +69,27 @@ class TransportTestCase(TestCase):
             modelo="Transit",
             matricula="ABC-789-MC",
             capacidade=10,
-            motorista=self.motorista
+            motorista=self.motorista,
+            data_validade_seguro=date.today() + timedelta(days=365),
+            data_validade_inspecao=date.today() + timedelta(days=180)
         )
         with self.assertRaises(ValidationError):
             veiculo2.full_clean()
 
     def test_veiculo_com_motorista(self):
         motorista_test = self._criar_motorista_unico(sufixo="3")
-        veiculo = Veiculo(marca="Toyota", modelo="Quantum", matricula="XYZ-456-MC", capacidade=30, motorista=motorista_test)
+        veiculo = Veiculo(marca="Toyota", modelo="Quantum", matricula="XYZ-456-MC", capacidade=30, motorista=motorista_test,
+            data_validade_seguro=date.today() + timedelta(days=365),
+            data_validade_inspecao=date.today() + timedelta(days=180))
         try:
             veiculo.full_clean()
         except ValidationError:
             self.fail("Veículo com motorista válido não deve lançar ValidationError")
 
     def test_veiculo_sem_motorista(self):
-        veiculo = Veiculo(marca="Toyota", modelo="Hiace", matricula="AEC-785-MP", capacidade=25, motorista=None)
+        veiculo = Veiculo(marca="Toyota", modelo="Hiace", matricula="AEC-785-MP", capacidade=25, motorista=None,
+            data_validade_seguro=date.today() + timedelta(days=365),
+            data_validade_inspecao=date.today() + timedelta(days=180))
         with self.assertRaises(ValidationError) as err:
             veiculo.full_clean()
         self.assertIn("motorista", err.exception.message_dict)
@@ -87,7 +97,9 @@ class TransportTestCase(TestCase):
 
     def test_veiculo_inativo(self):
         m_inativo=self._criar_motorista_unico(sufixo=33)
-        veiculo = Veiculo(marca="Toyota", modelo="Hiace", matricula="AHC-785-MP", capacidade=25, motorista=m_inativo, ativo=False)
+        veiculo = Veiculo(marca="Toyota", modelo="Hiace", matricula="AHC-785-MP", capacidade=25, motorista=m_inativo, ativo=False,
+            data_validade_seguro=date.today() + timedelta(days=365),
+            data_validade_inspecao=date.today() + timedelta(days=180))
         try:
             veiculo.full_clean()
         except ValidationError:
@@ -102,7 +114,9 @@ class TransportTestCase(TestCase):
 
     def test_veiculo_em_manutencao(self):
         m_mant = self._criar_motorista_unico(sufixo="88")
-        veiculo = Veiculo.objects.create(marca="Toyota", modelo="Hiace", matricula="AZC-785-MP", capacidade=25, motorista=m_mant)
+        veiculo = Veiculo.objects.create(marca="Toyota", modelo="Hiace", matricula="AZC-785-MP", capacidade=25, motorista=m_mant,
+            data_validade_seguro=date.today() + timedelta(days=365),
+            data_validade_inspecao=date.today() + timedelta(days=180))
 
         Manutencao.objects.create(
             veiculo=veiculo,
@@ -117,7 +131,9 @@ class TransportTestCase(TestCase):
 
     def test_veiculo_capacidade_excessiva(self):
         m_novo = self._criar_motorista_unico(sufixo="4")
-        veiculo = Veiculo(marca="Toyota", modelo="Hiace", matricula="AQC-785-MP", capacidade=51, motorista=m_novo)
+        veiculo = Veiculo(marca="Toyota", modelo="Hiace", matricula="AQC-785-MP", capacidade=51, motorista=m_novo,
+            data_validade_seguro=date.today() + timedelta(days=365),
+            data_validade_inspecao=date.today() + timedelta(days=180))
         with self.assertRaises(ValidationError) as err:
             veiculo.full_clean()
         self.assertIn("capacidade", err.exception.message_dict)
@@ -127,8 +143,10 @@ class TransportTestCase(TestCase):
         matricula_rep = "AMC-785-MP"
         matr1 = self._criar_motorista_unico(sufixo="5")
         matr2 = self._criar_motorista_unico(sufixo="6")
-        Veiculo.objects.create(marca="Toyota", modelo="Hiace", matricula=matricula_rep, capacidade=25, motorista=matr1)
-        veiculo2 = Veiculo(marca="Toyota", modelo="Hiace", matricula=matricula_rep, capacidade=25, motorista=matr2)
+        Veiculo.objects.create(marca="Toyota", modelo="Hiace", matricula=matricula_rep, capacidade=25, motorista=matr1,
+            data_validade_seguro=date.today() + timedelta(days=365),
+            data_validade_inspecao=date.today() + timedelta(days=180))
+        veiculo2 = Veiculo(marca="Toyota", modelo="Hiace", matricula=matricula_rep, capacidade=25, motorista=matr2, data_validade_seguro=date.today() + timedelta(days=365), data_validade_inspecao=date.today() + timedelta(days=180))
         with self.assertRaises(ValidationError) as err:
             veiculo2.full_clean()
         self.assertIn("matricula", err.exception.message_dict)
@@ -206,7 +224,7 @@ class TransportTestCase(TestCase):
         m2 = self._criar_motorista_unico(sufixo="99")
         v2 = Veiculo.objects.create(
             marca="Toyota", modelo="Hiace",
-            matricula="AMC-785-MP", capacidade=25, motorista=m2
+            matricula="AMC-785-MP", capacidade=25, motorista=m2, data_validade_seguro=date.today() + timedelta(days=365), data_validade_inspecao=date.today() + timedelta(days=180)
         )
 
         Manutencao.objects.create(
@@ -218,3 +236,20 @@ class TransportTestCase(TestCase):
         rota = Rota(nome="Rota Oficina", veiculo=v2)
         with self.assertRaises(ValidationError):
             rota.full_clean()
+
+    def test_permitir_dois_turnos_no_mesmo_dia(self):
+        rota1 = Rota.objects.create(nome="Rota Manhã", veiculo=self.veiculo, hora_partida=datetime.time(7, 0), hora_chegada=datetime.time(8, 0), ativo=True)
+        rota2 = Rota(nome="Rota Tarde", veiculo=self.veiculo, hora_partida=datetime.time(12, 0), hora_chegada=datetime.time(17, 30), ativo=True)
+        try:
+            rota2.full_clean()
+        except ValidationError:
+            self.fail("Rota com horários sem conflito não deve lançar ValidationError{outra.rota.nome}.")
+
+    def impedir_rota_com_veiculo_com_seguro_vencido(self):
+        self.veiculo.data_validade_seguro = date.today() - timedelta(days=1)
+        self.veiculo.save()
+        rota = Rota(nome="Rota Seguro Vencido", veiculo=self.veiculo)
+        with self.assertRaises(ValidationError) as er:
+            rota.full_clean()
+        self.assertIn("veiculo", er.exception.message_dict)
+        self.assertEqual(er.exception.message_dict["veiculo"], ["Este veiculo possui seguro ou inspeção vencida, nao pode realizar rotas."])

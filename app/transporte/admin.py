@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from django import forms
-from datetime import date
+from datetime import date, datetime
 from core.models import Motorista
 from django.core.exceptions import ValidationError
 from transporte.models import Veiculo, Rota, TransporteAluno, Manutencao
@@ -58,6 +58,20 @@ class VeiculoAdmin(admin.ModelAdmin):
             "fields": ("quilometragem_atual", "km_proxima_revisao", "data_ultima_revisao", "status_visual"),
             "description": "Controle de KMs para evitar paragens inesperadas."
         }),)
+
+    def get_status_documentos(self, obj):
+        hoje = datetime.date.today()
+        aviso = []
+        if obj.data_validade_seguro and obj.data_validade_seguro < hoje:
+            aviso.append("Seguro vencido")
+        if obj.data_validade_inspecao and obj.data_validade_inspecao < hoje:
+            aviso.append("Inspeção vencida")
+
+        if not aviso:
+            return format_html('<span style="color: green;">Documentos em dia</span>')
+        return format_html('<span style="color: red;">{}</span>', ', '.join(aviso))
+
+    get_status_documentos.short_description = "Status dos Documentos legal"
 
     @admin.display(description="Status Visual")
     def status_visual(self, obj):

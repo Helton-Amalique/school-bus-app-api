@@ -26,13 +26,13 @@ class TransportesErrorAPITests(TestCase):
         # Motorista
         self.u_mot = User.objects.create_user(email='mot@test.com', password='passtest', nome='M', role='MOTORISTA')
         self.motorista = Motorista.objects.create(user=self.u_mot, data_nascimento='1990-01-01', nrBI='123456789012M', carta_conducao=123956789, validade_da_carta=date.today() + timedelta(days=365))
-        self.veiculo_mot = Veiculo.objects.create(marca='Toyota', modelo='Hiace', matricula='ABC-124-XC', capacidade=15, motorista=self.motorista)
+        self.veiculo_mot = Veiculo.objects.create(marca='Toyota', modelo='Hiace', matricula='ABC-124-XC', capacidade=15, motorista=self.motorista, data_validade_seguro=date.today() + timedelta(days=365), data_validade_inspecao=date.today() + timedelta(days=180))
         self.rota_mot = Rota.objects.create(nome='Rota do Motorista', veiculo=self.veiculo_mot)
 
         # Outro motorista e rota
         self.u_mot2 = User.objects.create_user(email='mot2@test.com', password='passtest', nome='M2', role='MOTORISTA')
         self.motorista2 = Motorista.objects.create(user=self.u_mot2, data_nascimento='1992-01-01', nrBI='987654321098M', carta_conducao=129176789, validade_da_carta=date.today() + timedelta(days=365))
-        self.veiculo_mot2 = Veiculo.objects.create(marca='Ford', modelo='Transit', matricula='XYZ-999-MP', capacidade=10, motorista=self.motorista2)
+        self.veiculo_mot2 = Veiculo.objects.create(marca='Ford', modelo='Transit', matricula='XYZ-999-MP', capacidade=10, motorista=self.motorista2, data_validade_seguro=date.today() + timedelta(days=365), data_validade_inspecao=date.today() + timedelta(days=180))
         self.rota_mot2 = Rota.objects.create(nome='Rota Alheia', veiculo=self.veiculo_mot2)
 
         # Encarregado e aluno

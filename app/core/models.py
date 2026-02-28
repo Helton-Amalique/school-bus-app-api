@@ -105,6 +105,12 @@ class Motorista(models.Model):
             (hoje.month, hoje.day) < (self.data_nascimento.month, self.data_nascimento.day)
         )
 
+    def carta_conducao_vencida(self):
+        """Verifica se a carta de condução está vencida"""
+        if not self.validade_da_carta:
+            return True
+        return self.validade_da_carta < date.today()
+
     def clean(self):
         hoje = date.today()
         if self.data_nascimento > hoje:
