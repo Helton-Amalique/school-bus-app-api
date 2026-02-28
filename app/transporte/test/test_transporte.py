@@ -2,7 +2,7 @@ import datetime
 from datetime import date, timedelta, time
 from django.test import TestCase
 from core.models import Motorista, Aluno, Encarregado
-from transporte.models import Veiculo, Rota, Manutencao
+from transporte.models import Veiculo, Rota, Manutencao, Abastecimento
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 
@@ -88,8 +88,8 @@ class TransportTestCase(TestCase):
 
     def test_veiculo_sem_motorista(self):
         veiculo = Veiculo(marca="Toyota", modelo="Hiace", matricula="AEC-785-MP", capacidade=25, motorista=None,
-            data_validade_seguro=date.today() + timedelta(days=365),
-            data_validade_inspecao=date.today() + timedelta(days=180))
+        data_validade_seguro=date.today() + timedelta(days=365),
+        data_validade_inspecao=date.today() + timedelta(days=180))
         with self.assertRaises(ValidationError) as err:
             veiculo.full_clean()
         self.assertIn("motorista", err.exception.message_dict)
@@ -238,7 +238,7 @@ class TransportTestCase(TestCase):
             rota.full_clean()
 
     def test_permitir_dois_turnos_no_mesmo_dia(self):
-        rota1 = Rota.objects.create(nome="Rota Manhã", veiculo=self.veiculo, hora_partida=datetime.time(7, 0), hora_chegada=datetime.time(8, 0), ativo=True)
+        rota1 = Rota.objects.create(nome="Rota Manhã", veiculo=self.veiculo, hora_partida=datetime.time(7, 0), hora_chegada=datetime.time(10, 0), ativo=True)
         rota2 = Rota(nome="Rota Tarde", veiculo=self.veiculo, hora_partida=datetime.time(12, 0), hora_chegada=datetime.time(17, 30), ativo=True)
         try:
             rota2.full_clean()
@@ -253,3 +253,9 @@ class TransportTestCase(TestCase):
             rota.full_clean()
         self.assertIn("veiculo", er.exception.message_dict)
         self.assertEqual(er.exception.message_dict["veiculo"], ["Este veiculo possui seguro ou inspeção vencida, nao pode realizar rotas."])
+
+    def test_calculo_consumo_medio(self):
+        v = self.veiculo
+        Abastecimento.objects.create(veiculo=v, litros=50, quilometragem_no_ato=1000, litros=50, custo=3500)
+        Abastecimento.objects.create(veiculo=v, litros=40, quilometragem_no_ato=1500, litros=40, custo=2800)
+        self.assertEqual(v.consumo_medio(), 10.0)
