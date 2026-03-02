@@ -2,7 +2,6 @@ import datetime
 from django.db import models
 from django.db.models import Count, Q, F
 from core.models import Aluno, Motorista
-# from core.transporte import rota
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator, MinValueValidator, MaxValueValidator
 
@@ -96,7 +95,6 @@ class Veiculo(models.Model):
 
         distancia = ultimos[0].quilometragem_no_ato - ultimos[1].quilometragem_no_ato
         return round(distancia / float(ultimos[0].litros), 2)
-
 
     def __str__(self):
         return f"{self.modelo} - {self.matricula}"
@@ -217,6 +215,7 @@ class Manutencao(models.Model):
 
     def __str__(self):
         return f"{self.veiculo.matricula} - {self.descricao[:30]}"
+
 
 class Abastecimento(models.Model):
     veiculo = models.ForeignKey(Veiculo, on_delete=models.CASCADE, related_name="abastecimentos")

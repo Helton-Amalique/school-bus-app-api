@@ -78,18 +78,14 @@ class TransportTestCase(TestCase):
 
     def test_veiculo_com_motorista(self):
         motorista_test = self._criar_motorista_unico(sufixo="3")
-        veiculo = Veiculo(marca="Toyota", modelo="Quantum", matricula="XYZ-456-MC", capacidade=30, motorista=motorista_test,
-            data_validade_seguro=date.today() + timedelta(days=365),
-            data_validade_inspecao=date.today() + timedelta(days=180))
+        veiculo = Veiculo(marca="Toyota", modelo="Quantum", matricula="XYZ-456-MC", capacidade=30, motorista=motorista_test, data_validade_seguro=date.today() + timedelta(days=365), data_validade_inspecao=date.today() + timedelta(days=180))
         try:
             veiculo.full_clean()
         except ValidationError:
             self.fail("Veículo com motorista válido não deve lançar ValidationError")
 
     def test_veiculo_sem_motorista(self):
-        veiculo = Veiculo(marca="Toyota", modelo="Hiace", matricula="AEC-785-MP", capacidade=25, motorista=None,
-        data_validade_seguro=date.today() + timedelta(days=365),
-        data_validade_inspecao=date.today() + timedelta(days=180))
+        veiculo = Veiculo(marca="Toyota", modelo="Hiace", matricula="AEC-785-MP", capacidade=25, motorista=None, data_validade_seguro=date.today() + timedelta(days=365), data_validade_inspecao=date.today() + timedelta(days=180))
         with self.assertRaises(ValidationError) as err:
             veiculo.full_clean()
         self.assertIn("motorista", err.exception.message_dict)
@@ -97,26 +93,15 @@ class TransportTestCase(TestCase):
 
     def test_veiculo_inativo(self):
         m_inativo=self._criar_motorista_unico(sufixo=33)
-        veiculo = Veiculo(marca="Toyota", modelo="Hiace", matricula="AHC-785-MP", capacidade=25, motorista=m_inativo, ativo=False,
-            data_validade_seguro=date.today() + timedelta(days=365),
-            data_validade_inspecao=date.today() + timedelta(days=180))
+        veiculo = Veiculo(marca="Toyota", modelo="Hiace", matricula="AHC-785-MP", capacidade=25, motorista=m_inativo, ativo=False, data_validade_seguro=date.today() + timedelta(days=365), data_validade_inspecao=date.today() + timedelta(days=180))
         try:
             veiculo.full_clean()
         except ValidationError:
             self.fail("Veículo inativo não deve lançar ValidationError")
 
-    # def test_veiculo_capacidade_minima(self):
-    #     veiculo = Veiculo(marca="Toyota", modelo="Hiace", matricula="ACC-785-MP", capacidade=1, motorista=self.motorista)
-    #     try:
-    #         veiculo.full_clean()
-    #     except ValidationError:
-    #         self.fail("Veículo com capacidade mínima válida não deve lançar ValidationError")
-
     def test_veiculo_em_manutencao(self):
         m_mant = self._criar_motorista_unico(sufixo="88")
-        veiculo = Veiculo.objects.create(marca="Toyota", modelo="Hiace", matricula="AZC-785-MP", capacidade=25, motorista=m_mant,
-            data_validade_seguro=date.today() + timedelta(days=365),
-            data_validade_inspecao=date.today() + timedelta(days=180))
+        veiculo = Veiculo.objects.create(marca="Toyota", modelo="Hiace", matricula="AZC-785-MP", capacidade=25, motorista=m_mant, data_validade_seguro=date.today() + timedelta(days=365), data_validade_inspecao=date.today() + timedelta(days=180))
 
         Manutencao.objects.create(
             veiculo=veiculo,
@@ -131,9 +116,7 @@ class TransportTestCase(TestCase):
 
     def test_veiculo_capacidade_excessiva(self):
         m_novo = self._criar_motorista_unico(sufixo="4")
-        veiculo = Veiculo(marca="Toyota", modelo="Hiace", matricula="AQC-785-MP", capacidade=51, motorista=m_novo,
-            data_validade_seguro=date.today() + timedelta(days=365),
-            data_validade_inspecao=date.today() + timedelta(days=180))
+        veiculo = Veiculo(marca="Toyota", modelo="Hiace", matricula="AQC-785-MP", capacidade=51, motorista=m_novo, data_validade_seguro=date.today() + timedelta(days=365), data_validade_inspecao=date.today() + timedelta(days=180))
         with self.assertRaises(ValidationError) as err:
             veiculo.full_clean()
         self.assertIn("capacidade", err.exception.message_dict)
@@ -143,9 +126,7 @@ class TransportTestCase(TestCase):
         matricula_rep = "AMC-785-MP"
         matr1 = self._criar_motorista_unico(sufixo="5")
         matr2 = self._criar_motorista_unico(sufixo="6")
-        Veiculo.objects.create(marca="Toyota", modelo="Hiace", matricula=matricula_rep, capacidade=25, motorista=matr1,
-            data_validade_seguro=date.today() + timedelta(days=365),
-            data_validade_inspecao=date.today() + timedelta(days=180))
+        Veiculo.objects.create(marca="Toyota", modelo="Hiace", matricula=matricula_rep, capacidade=25, motorista=matr1, data_validade_seguro=date.today() + timedelta(days=365), data_validade_inspecao=date.today() + timedelta(days=180))
         veiculo2 = Veiculo(marca="Toyota", modelo="Hiace", matricula=matricula_rep, capacidade=25, motorista=matr2, data_validade_seguro=date.today() + timedelta(days=365), data_validade_inspecao=date.today() + timedelta(days=180))
         with self.assertRaises(ValidationError) as err:
             veiculo2.full_clean()
@@ -254,8 +235,27 @@ class TransportTestCase(TestCase):
         self.assertIn("veiculo", er.exception.message_dict)
         self.assertEqual(er.exception.message_dict["veiculo"], ["Este veiculo possui seguro ou inspeção vencida, nao pode realizar rotas."])
 
-    def test_calculo_consumo_medio(self):
-        v = self.veiculo
-        Abastecimento.objects.create(veiculo=v, litros=50, quilometragem_no_ato=1000, litros=50, custo=3500)
-        Abastecimento.objects.create(veiculo=v, litros=40, quilometragem_no_ato=1500, litros=40, custo=2800)
-        self.assertEqual(v.consumo_medio(), 10.0)
+    # def test_calculo_consumo_medio(self):
+        # v = self.veiculo
+        # Abastecimento.objects.create(veiculo=v, quantidade_litros=50, quilometragem_no_ato=1000, custo=3500)
+        # Abastecimento.objects.create(veiculo=v, quantidade_litros=40, quilometragem_no_ato=1500, custo=2800)
+        # self.assertEqual(v.consumo_medio(), 10.0)
+
+    def test_calculo_medio(self):
+        # Erro estava aqui: self.abstecimento -> Abastecimento.objects
+        abastecimentos = Abastecimento.objects.filter(veiculo=self.veiculo).order_by('quilometragem_no_ato')
+
+        # Ou se estiver a testar o método do model Veiculo diretamente:
+        resultado = self.veiculo.consumo_medio()
+        self.assertEqual(resultado, 10.0)
+
+    # def test_calculo_medio(self):
+    #     abastecimento = self.abastecimento.order_by('quilometragem_no_ato')
+    #     if abastecimento.count() < 2:
+    #         return 0
+    #     primeir = abastecimento.first()
+    #     ultimo = abastecimento.last()
+    #     distancia = ultimo.quilometragem_no_ato - primeir.quilometragem_no_ato
+
+    #     quantidade_litros = sum(a.quantidade_litros for a in abastecimento[:-1])
+    #     return distancia / quantidade_litros if quantidade_litros > 0 else 0
