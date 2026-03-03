@@ -1,6 +1,6 @@
 import datetime
-from django.db import models
-from django.db.models import Count, Q, F
+from django.db import models, transaction
+from django.db.models import Count, Q, F, Sum
 from core.models import Aluno, Motorista
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator, MinValueValidator, MaxValueValidator
@@ -85,16 +85,52 @@ class Veiculo(models.Model):
         alunos_na_rota = rota_ativa.alunos.count()
         return self.capacidade - alunos_na_rota
 
+    @property
+    def custo_total_combustivel(self):
+        return self.abastecimento.aggregate(total=Sum('custo_total'))['total'] or 0.00
+
+    @property
+    def autonomia_estimada(self):
+        consumo = self.consumo_medio()
+        return consumo * 50 if consumo > 0 else 0
+
+    def precisa_manutencao(self):
+        LIMITE = 7000
+
+        if self.em_manutencao():
+            return False
+
+        ultima = self.manutencoes.filter(concluida=True).order_by('-quilometragem_no_momento_revisao').first()
+        if not ultima:
+            return self.quilometragem_atual >= LIMITE
+        return(self.quilometragem_atual - ultima.quilometragem_no_momento_revisao) >= LIMITE
+
     def em_manutencao(self):
         return self.manutencoes.filter(concluida=False).exists()
 
     def consumo_medio(self):
-        ultimos = self.abastecimento.order_by('-quilometragem_no_ato')[:2]
-        if ultimos.count() < 2:
+        abastecimentos = list(self.abastecimento.all().order_by('quilometragem_no_ato'))
+        if len(abastecimentos) < 2:
             return 0
 
-        distancia = ultimos[0].quilometragem_no_ato - ultimos[1].quilometragem_no_ato
-        return round(distancia / float(ultimos[0].litros), 2)
+        primeiro = abastecimentos[0]
+        ultimo = abastecimentos[-1]
+        distancia = ultimo.quilometragem_no_ato - primeiro.quilometragem_no_ato
+        litros_considerados = primeiro.quantidade_litros
+
+        if litros_considerados == 0:
+            return 0.0
+        return float(distancia / litros_considerados)
+
+    def custo_por_quilometro(self):
+        total_combustivel = self.abastecimento.aggregate(total=Sum('custo_total'))['total'] or 0
+        total_manutencao = self.manutecoes.aggregate(total=Sum('custo'))['total'] or 0
+        distancia = self.quilometragem_atual
+        if distancia == 0:
+            return 0.0
+
+        custo_total = float(total_combustivel) + float(total_manutencao)
+        return round(custo_total / distancia / 2)
 
     def __str__(self):
         return f"{self.modelo} - {self.matricula}"
@@ -181,13 +217,19 @@ class TransporteAluno(models.Model):
 
 
 class Manutencao(models.Model):
+    TIPOS_MANUTENCAO = [('PREVENTIVA', 'Preventiva'), ('CORRETIVA', 'Corretiva')]
+
     veiculo = models.ForeignKey(Veiculo, on_delete=models.CASCADE, related_name="manutencoes")
-    descricao = models.TextField()
+    tipo = models.CharField(max_length=20, choices=TIPOS_MANUTENCAO, default='PREVENTIVA')
+    descricao = models.TextField(help_text='Descreva o servico (ex: Troca de oleo, travoes)')
     data_inicio = models.DateField()
     quilometragem_no_momento_revisao = models.PositiveIntegerField(default=0)
     data_fim = models.DateField(null=True, blank=True)
     custo = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     concluida = models.BooleanField(default=False)
+
+    data_ultima_revisao = models.DateField(null=True, blank=True)
+    km_proxima_revisao = models.PositiveIntegerField(default=7000)
 
     class Meta:
         verbose_name = "Manutenção"
@@ -198,30 +240,35 @@ class Manutencao(models.Model):
         if self.data_fim and self.data_inicio and self.data_fim < self.data_inicio:
             raise ValidationError({"data_fim": "A data de fim deve ser posterior a data de início."})
 
-    data_ultima_revisao = models.DateField(null=True, blank=True)
-    km_proxima_revisao = models.PositiveIntegerField(default=7000)
+        if self.quilometragem_no_momento_revisao < self.veiculo.quilometragem_atual:
+            raise ValidationError({"quilometragem_no_momento_revisao":
+                f"A quilometragem da revisão ({self.quilometragem_no_momento_revisao})"
+                f"não pode ser menor que a atual do veículo ({self.veiculo.quilometragem_atual})."})
 
     def concluir_manutencao(self, km_proximo_ajuste=7000):
-        self.concluida = True
-        self.data_fim = datetime.date.today()
 
-        self.veiculo.data_ultima_revisao = self.data_fim
-        if self.quilometragem_no_momento_revisao > self.veiculo.quilometragem_atual:
-            self.veiculo.quilometragem_atual = self.quilometragem_no_momento_revisao
+        with transaction.atomic():
+            self.concluida =True
+            self.data_fim = datetime.date.today()
 
-        self.veiculo.km_proxima_revisao = self.veiculo.quilometragem_atual + km_proximo_ajuste
-        self.veiculo.save()
-        self.save()
+            veiculo = self.veiculo
+            veiculo.data_ultima_revisao = self.data_fim
+            if self.quilometragem_no_momento_revisao > veiculo.quilometragem_atual:
+                veiculo.quilometragem_atual = self.quilometragem_no_momento_revisao
+
+            veiculo.km_proxima_revisao = veiculo.quilometragem_atual + self.km_proxima_revisao
+            veiculo.save()
+            self.save()
 
     def __str__(self):
         return f"{self.veiculo.matricula} - {self.descricao[:30]}"
 
 
 class Abastecimento(models.Model):
-    veiculo = models.ForeignKey(Veiculo, on_delete=models.CASCADE, related_name="abastecimentos")
+    veiculo = models.ForeignKey(Veiculo, on_delete=models.CASCADE, related_name="abastecimento")
     data = models.DateField(auto_now_add=True)
     quilometragem_no_ato = models.PositiveIntegerField(default=0, help_text='Quilometragem do veículo no momento do abastecimento')
-    quantidade_litros = models.DecimalField(max_digits=5, decimal_places=2)
+    quantidade_litros = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
     custo_total = models.DecimalField(max_digits=10, decimal_places=2)
     posto_combustivel = models.CharField(max_length=100)
 

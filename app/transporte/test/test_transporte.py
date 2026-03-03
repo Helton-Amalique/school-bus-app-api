@@ -218,6 +218,32 @@ class TransportTestCase(TestCase):
         with self.assertRaises(ValidationError):
             rota.full_clean()
 
+    def test_alerta_manutencao_ativa(self):
+        v = self.veiculo
+        v.quilometragem_atual = 15800
+        v.save()
+        Manutencao.objects.create(veiculo=v, quilometragem_no_momento_revisao=8050, data_inicio=datetime.date.today(), concluida=True)
+        self.assertTrue(v.precisa_manutencao())
+
+        Manutencao.objects.create(veiculo=v, quilometragem_no_momento_revisao=15800, data_inicio=datetime.date.today(), concluida=True)
+        self.assertFalse(v.precisa_manutencao())
+
+    def test_conclusao_manutencao_e_agenadamento_proxima(self):
+        v = self.veiculo
+        v.quilometragem_atual = 1500
+        v.save()
+
+        manutencao = Manutencao.objects.create(veiculo=v, tipo="PREVENTIVA", descricao='Troca de oleo', data_inicio=datetime.date.today(), quilometragem_no_momento_revisao=1500, concluida=False)
+        manutencao.concluir_manutencao(km_proximo_ajuste=7000)
+        v.refresh_from_db()
+        self.assertEqual(v.quilometragem_atual, 1500)
+        self.assertEqual(v.km_proxima_revisao, 8500)
+        self.assertEqual(v.data_ultima_revisao, datetime.date.today())
+
+        manutencao.refresh_from_db()
+        self.assertTrue(manutencao.concluida)
+        self.assertIsNotNone(manutencao.data_fim)
+
     def test_permitir_dois_turnos_no_mesmo_dia(self):
         rota1 = Rota.objects.create(nome="Rota Manhã", veiculo=self.veiculo, hora_partida=datetime.time(7, 0), hora_chegada=datetime.time(10, 0), ativo=True)
         rota2 = Rota(nome="Rota Tarde", veiculo=self.veiculo, hora_partida=datetime.time(12, 0), hora_chegada=datetime.time(17, 30), ativo=True)
@@ -235,19 +261,19 @@ class TransportTestCase(TestCase):
         self.assertIn("veiculo", er.exception.message_dict)
         self.assertEqual(er.exception.message_dict["veiculo"], ["Este veiculo possui seguro ou inspeção vencida, nao pode realizar rotas."])
 
-    # def test_calculo_consumo_medio(self):
-        # v = self.veiculo
-        # Abastecimento.objects.create(veiculo=v, quantidade_litros=50, quilometragem_no_ato=1000, custo=3500)
-        # Abastecimento.objects.create(veiculo=v, quantidade_litros=40, quilometragem_no_ato=1500, custo=2800)
-        # self.assertEqual(v.consumo_medio(), 10.0)
+    def test_calculo_consumo_medio(self):
+        v = self.veiculo
+        Abastecimento.objects.create(veiculo=v, quantidade_litros=50, quilometragem_no_ato=1000, custo_total=3500, posto_combustivel="Posto A")
+        Abastecimento.objects.create(veiculo=v, quantidade_litros=40, quilometragem_no_ato=1500, custo_total=2800, posto_combustivel="Posto B")
+        self.assertEqual(v.consumo_medio(), 10.0)
 
-    def test_calculo_medio(self):
-        # Erro estava aqui: self.abstecimento -> Abastecimento.objects
-        abastecimentos = Abastecimento.objects.filter(veiculo=self.veiculo).order_by('quilometragem_no_ato')
+    # def test_calculo_medio(self):
+    #     # Erro estava aqui: self.abstecimento -> Abastecimento.objects
+    #     abastecimentos = Abastecimento.objects.filter(veiculo=self.veiculo).order_by('quilometragem_no_ato')
 
-        # Ou se estiver a testar o método do model Veiculo diretamente:
-        resultado = self.veiculo.consumo_medio()
-        self.assertEqual(resultado, 10.0)
+    #     # Ou se estiver a testar o método do model Veiculo diretamente:
+    #     resultado = self.veiculo.consumo_medio()
+    #     self.assertEqual(resultado, 10.0)
 
     # def test_calculo_medio(self):
     #     abastecimento = self.abastecimento.order_by('quilometragem_no_ato')

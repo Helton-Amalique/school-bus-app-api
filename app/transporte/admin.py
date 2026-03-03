@@ -4,7 +4,7 @@ from django import forms
 from datetime import date, datetime
 from core.models import Motorista
 from django.core.exceptions import ValidationError
-from transporte.models import Veiculo, Rota, TransporteAluno, Manutencao
+from transporte.models import Veiculo, Rota, TransporteAluno, Manutencao, Abastecimento
 from transporte.forms import RotaForm
 
 class AlunoRotaFormSet(forms.BaseInlineFormSet):
@@ -25,39 +25,89 @@ class AlunoRotaFormSet(forms.BaseInlineFormSet):
 class ManutencaoInline(admin.TabularInline):
     model = Manutencao
     extra = 1
-    fields = ("get_matricula", "get_marca", "get_modelo", "data_inicio", "data_fim", "descricao", "custo", "concluida")
-    readonly_fields = ("get_matricula", "get_marca", "get_modelo")
+    fields = ("get_matricula", "data_inicio", "data_fim", "descricao", "custo", "concluida", "alerta_revisao")
+    readonly_fields = ("get_matricula", "alerta_revisao")
     verbose_name = "Manutenção do Veiculo"
     verbose_name_plural = "Manutenções do Veiculo"
+
+    @admin.display(boolean=True, description="Proxima Revisao?")
+    def alerta_revisao(self, obj):
+        return obj.veiculo.precisa_manutencao()
 
     @admin.display(description="Matrícula")
     def get_matricula(self, obj):
         return obj.veiculo.matricula
 
-    @admin.display(description="Marca")
-    def get_marca(self, obj):
-        return obj.veiculo.marca
+    # @admin.display(description="Marca")
+    # def get_marca(self, obj):
+    #     return obj.veiculo.marca
 
-    @admin.display(description="Modelo")
-    def get_modelo(self, obj):
-        return obj.veiculo.modelo
+    # @admin.display(description="Modelo")
+    # def get_modelo(self, obj):
+    #     return obj.veiculo.modelo
+
+    @admin.display(boolean=True, description='Manutencao Urgente?')
+    def alerta_manuntencao(self, obj):
+        return obj.precisa_manutencao()
+
+    @admin.action(description="Marcar manutencoes selecionadas como concluidas")
+    def finalizar_manutencoes(modeladmin, request, queryset):
+        for manutencao in queryset.filter(concluida=False):
+            manutencao.concluir_manutencao()
+
+
+@admin.register(Manutencao)
+class ManutencaoAdmin(admin.ModelAdmin):
+    list_display = ("veiculo", "tipo", "data_inicio", "concluida", "custo")
+    list_filter = ("concluida", "tipo")
+    actions = ["finalizar_manutencoes"]
+
+    @admin.action(description="Marcar selecionadas como concluídas")
+    def finalizar_manutencoes(self, request, queryset):
+        for manutencao in queryset.filter(concluida=False):
+            manutencao.concluir_manutencao()
+        self.message_user(request, "Manutenções finalizadas e veículos atualizados.")
+
+class AbastecimentoInline(admin.TabularInline):
+    model = Abastecimento
+    extra = 1
+    fields = ('data', 'quantidade_litros', 'quilometragem_no_ato', "custo_total", "posto_combustivel")
+    readonly_fields = ("data",)
 
 @admin.register(Veiculo)
 class VeiculoAdmin(admin.ModelAdmin):
-    list_display = ("matricula", "modelo", "marca", "motorista", "capacidade", "ativo", "vagas_disponiveis")
-    list_filter = ("ativo", "motorista")
+    list_display = ("matricula", "modelo", "quilometragem_atual", "km_proxima_revisao", "alerta_manutencao")
+    # list_display = ("matricula", "modelo", "marca", "motorista", "capacidade", "ativo", "vagas_disponiveis")
+    list_filter = ("ativo", "motorista", )
     search_fields = ("matricula", "modelo", "marca", "motorista__user__nome")
-    inlines = [ManutencaoInline]
+    inlines = [AbastecimentoInline, ManutencaoInline]
     readonly_fields = ("status_visual", "vagas_disponiveis", "criado_em", "atualizado_em")
     ordering = ("matricula",)
 
     fieldsets = (
-        ("Informação Básica", {"fields": ("marca", "modelo", "matricula", "capacidade", "motorista")}),
-        ("Estado e Logística", {"fields": ("ativo", "vagas_disponiveis")}),
-        ("Manutenção Preventiva", {
-            "fields": ("quilometragem_atual", "km_proxima_revisao", "data_ultima_revisao", "status_visual"),
-            "description": "Controle de KMs para evitar paragens inesperadas."
+        ("Informação Geral", {
+            "fields": ("modelo", "marca", "matricula", "quilometragem_atual")
+        }),
+        ("Estado de Manutenção", {
+            "fields": ("data_ultima_revisao", "km_proxima_revisao"),
+            "classes": ("collapse",),
         }),)
+
+    @admin.display(boolean=True, description="Manutencao?")
+    def alerta_manutencao(self, obj):
+        return obj.precisa_manutencao()
+
+    @admin.display(description="Custo/KM (MZN)")
+    def cpk_display(self, obj):
+        valor = obj.custo_por_quilometro()
+        return f"{valor} MZN"
+
+        # ("Informação Básica", {"fields": ("marca", "modelo", "matricula", "capacidade", "motorista")}),
+        # ("Estado e Logística", {"fields": ("ativo", "vagas_disponiveis")}),
+        # ("Manutenção Preventiva", {
+        #     "fields": ("quilometragem_atual", "km_proxima_revisao", "data_ultima_revisao", "status_visual"),
+        #     "description": "Controle de KMs para evitar paragens inesperadas."
+        # }),)
 
     def get_status_documentos(self, obj):
         hoje = datetime.date.today()
