@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DashBoard Financeiro</title>
+</head>
+<body>
+    <div class="row">
+    <!-- Card Receita -->
+    <div class="col-md-4">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <h5>Receita Real (Mês)</h5>
+                <h3>{{ receita_real }} MT</h3>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card Despesa -->
+    <div class="col-md-4">
+        <div class="card bg-danger text-white">
+            <div class="card-body">
+                <h5>Despesas Pagas</h5>
+                <h3>{{ despesa_total }} MT</h3>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card Dívidas a Receber -->
+    <div class="col-md-4">
+        <div class="card bg-warning text-dark">
+            <div class="card-body">
+                <h5>Dívidas Pendentes</h5>
+                <h3>{{ divida_ativa }} MT</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-4">
+    <p>Alunos Ativos: <b>{{ total_alunos }}</b> | Alunos com Mensalidade Atrasada: <b class="text-danger">{{ alunos_atrasados }}</b></p>
+</div>
+
+</body>
+</html>

@@ -1,170 +1,278 @@
+"""
+transporte/admin.py
+===================
+Administração Django para o módulo transporte.
+
+Registos: Veiculo, Rota, TransporteAluno, Manutencao, Abastecimento
+"""
+
 from django.contrib import admin
 from django.utils.html import format_html
-from django import forms
-from datetime import date, datetime
-from core.models import Motorista
-from django.core.exceptions import ValidationError
-from transporte.models import Veiculo, Rota, TransporteAluno, Manutencao, Abastecimento
-from transporte.forms import RotaForm
+from transporte.models import Abastecimento, Manutencao, Rota, TransporteAluno, Veiculo
 
-class AlunoRotaFormSet(forms.BaseInlineFormSet):
-    def clean(self):
-        super().clean()
 
-        total_alunos = 0
-        for form in self.forms:
-            if form.is_valid() and form.cleaned_data and not form.cleaned_data.get('DELETE', False):
-                total_alunos += 1
+def _badge_bool(valor, label_sim='Sim', label_nao='Não'):
+    if valor:
+        return format_html('<span style="color:#16a34a;font-weight:600;">● {}</span>', label_sim)
+    return format_html('<span style="color:#dc2626;font-weight:600;">● {}</span>', label_nao)
 
-        veiculo = getattr(self.instance, 'veiculo', None)
-        if veiculo:
-            capacidade = veiculo.capacidade
-            if total_alunos > capacidade:
-                raise ValidationError(f"Capacidade excedida! O veiculo {veiculo} so suporta {capacidade} alunos, mas tentou inserir {total_alunos}.")
+
+class RotaInline(admin.TabularInline):
+    model = Rota
+    extra = 0
+    show_change_link = True
+    fields = ('nome', 'hora_partida', 'hora_chegada', 'ativo')
+    readonly_fields = ('nome', 'hora_partida', 'hora_chegada', 'ativo')
+    can_delete = False
+
 
 class ManutencaoInline(admin.TabularInline):
     model = Manutencao
-    extra = 1
-    fields = ("get_matricula", "data_inicio", "data_fim", "descricao", "custo", "concluida", "alerta_revisao")
-    readonly_fields = ("get_matricula", "alerta_revisao")
-    verbose_name = "Manutenção do Veiculo"
-    verbose_name_plural = "Manutenções do Veiculo"
+    extra = 0
+    show_change_link = True
+    fields = ('tipo', 'descricao', 'data_inicio', 'custo', 'concluida')
+    readonly_fields = ('data_inicio', 'custo', 'concluida')
 
-    @admin.display(boolean=True, description="Proxima Revisao?")
-    def alerta_revisao(self, obj):
-        return obj.veiculo.precisa_manutencao()
-
-    @admin.display(description="Matrícula")
-    def get_matricula(self, obj):
-        return obj.veiculo.matricula
-
-    # @admin.display(description="Marca")
-    # def get_marca(self, obj):
-    #     return obj.veiculo.marca
-
-    # @admin.display(description="Modelo")
-    # def get_modelo(self, obj):
-    #     return obj.veiculo.modelo
-
-    @admin.display(boolean=True, description='Manutencao Urgente?')
-    def alerta_manuntencao(self, obj):
-        return obj.precisa_manutencao()
-
-    @admin.action(description="Marcar manutencoes selecionadas como concluidas")
-    def finalizar_manutencoes(modeladmin, request, queryset):
-        for manutencao in queryset.filter(concluida=False):
-            manutencao.concluir_manutencao()
-
-
-@admin.register(Manutencao)
-class ManutencaoAdmin(admin.ModelAdmin):
-    list_display = ("veiculo", "tipo", "data_inicio", "concluida", "custo")
-    list_filter = ("concluida", "tipo")
-    actions = ["finalizar_manutencoes"]
-
-    @admin.action(description="Marcar selecionadas como concluídas")
-    def finalizar_manutencoes(self, request, queryset):
-        for manutencao in queryset.filter(concluida=False):
-            manutencao.concluir_manutencao()
-        self.message_user(request, "Manutenções finalizadas e veículos atualizados.")
 
 class AbastecimentoInline(admin.TabularInline):
     model = Abastecimento
-    extra = 1
-    fields = ('data', 'quantidade_litros', 'quilometragem_no_ato', "custo_total", "posto_combustivel")
-    readonly_fields = ("data",)
+    extra = 0
+    show_change_link = True
+    fields = ('data', 'quilometragem_no_ato', 'quantidade_litros', 'custo_total', 'posto_combustivel')
+    readonly_fields = ('data',)
+
+
+class TransporteAlunoInline(admin.TabularInline):
+    model = TransporteAluno
+    extra = 0
+    fields = ('aluno', 'status', 'data')
+    readonly_fields = ('data',)
+    autocomplete_fields = ('aluno',)
+
 
 @admin.register(Veiculo)
 class VeiculoAdmin(admin.ModelAdmin):
-    list_display = ("matricula", "modelo", "quilometragem_atual", "km_proxima_revisao", "alerta_manutencao")
-    # list_display = ("matricula", "modelo", "marca", "motorista", "capacidade", "ativo", "vagas_disponiveis")
-    list_filter = ("ativo", "motorista", )
-    search_fields = ("matricula", "modelo", "marca", "motorista__user__nome")
-    inlines = [AbastecimentoInline, ManutencaoInline]
-    readonly_fields = ("status_visual", "vagas_disponiveis", "criado_em", "atualizado_em")
-    ordering = ("matricula",)
+    list_display = (
+        'matricula', 'marca', 'modelo', 'motorista', 'capacidade', 'vagas_display', 'doc_display', 'manutencao_display', 'ativo_display',
+    )
+    list_filter = ('ativo', 'marca')
+    search_fields = ('matricula', 'marca', 'modelo', 'motorista__user__nome')
+    readonly_fields = (
+        'vagas_disponiveis', 'custo_total_combustivel', 'autonomia_estimada',
+        'consumo_medio_display', 'custo_km_display',
+        'em_manutencao_display', 'precisa_manutencao_display',
+        'doc_em_dia_display',
+        'criado_em', 'atualizado_em',
+    )
+    autocomplete_fields = ('motorista',)
+    inlines = [RotaInline, ManutencaoInline, AbastecimentoInline]
 
     fieldsets = (
-        ("Informação Geral", {
-            "fields": ("modelo", "marca", "matricula", "quilometragem_atual")
+        ('Identificação', {
+            'fields': ('marca', 'modelo', 'matricula', 'motorista', 'ativo')
         }),
-        ("Estado de Manutenção", {
-            "fields": ("data_ultima_revisao", "km_proxima_revisao"),
-            "classes": ("collapse",),
-        }),)
+        ('Capacidade', {
+            'fields': ('capacidade', 'capacidade_tanque', 'vagas_disponiveis')
+        }),
+        ('Quilometragem', {
+            'fields': (
+                'quilometragem_atual', 'data_ultima_revisao', 'km_proxima_revisao',
+                'precisa_manutencao_display', 'em_manutencao_display',
+            )
+        }),
+        ('Documentação', {
+            'fields': (
+                'data_validade_seguro', 'data_validade_inspecao',
+                'nr_manifesto', 'data_validade_manifesto',
+                'doc_em_dia_display',
+            )
+        }),
+        ('Indicadores de Custo', {
+            'fields': (
+                'custo_total_combustivel', 'autonomia_estimada',
+                'consumo_medio_display', 'custo_km_display',
+            ),
+            'classes': ('collapse',),
+        }),
+        ('Auditoria', {
+            'fields': ('criado_em', 'atualizado_em'),
+            'classes': ('collapse',),
+        }),
+    )
 
-    @admin.display(boolean=True, description="Manutencao?")
-    def alerta_manutencao(self, obj):
-        return obj.precisa_manutencao()
+    # ── list_display helpers ──
 
-    @admin.display(description="Custo/KM (MZN)")
-    def cpk_display(self, obj):
-        valor = obj.custo_por_quilometro()
-        return f"{valor} MZN"
+    @admin.display(description='Vagas')
+    def vagas_display(self, obj):
+        return f"{obj.vagas_disponiveis}/{obj.capacidade}"
 
-        # ("Informação Básica", {"fields": ("marca", "modelo", "matricula", "capacidade", "motorista")}),
-        # ("Estado e Logística", {"fields": ("ativo", "vagas_disponiveis")}),
-        # ("Manutenção Preventiva", {
-        #     "fields": ("quilometragem_atual", "km_proxima_revisao", "data_ultima_revisao", "status_visual"),
-        #     "description": "Controle de KMs para evitar paragens inesperadas."
-        # }),)
+    @admin.display(description='Documentos')
+    def doc_display(self, obj):
+        return _badge_bool(obj.document_em_dia(), 'OK', 'Vencido')
 
-    def get_status_documentos(self, obj):
-        hoje = datetime.date.today()
-        aviso = []
-        if obj.data_validade_seguro and obj.data_validade_seguro < hoje:
-            aviso.append("Seguro vencido")
-        if obj.data_validade_inspecao and obj.data_validade_inspecao < hoje:
-            aviso.append("Inspeção vencida")
+    @admin.display(description='Manutenção')
+    def manutencao_display(self, obj):
+        if obj.em_manutencao():
+            return format_html('<span style="color:#f59e0b;font-weight:600;">● Em manutenção</span>')
+        if obj.precisa_manutencao():
+            return format_html('<span style="color:#dc2626;font-weight:600;">● Revisão urgente</span>')
+        return format_html('<span style="color:#16a34a;font-weight:600;">● OK</span>')
 
-        if not aviso:
-            return format_html('<span style="color: green;">Documentos em dia</span>')
-        return format_html('<span style="color: red;">{}</span>', ', '.join(aviso))
+    @admin.display(description='Estado')
+    def ativo_display(self, obj):
+        return _badge_bool(obj.ativo, 'Activo', 'Inactivo')
 
-    get_status_documentos.short_description = "Status dos Documentos legal"
+    # ── readonly fieldset helpers ──
 
-    @admin.display(description="Status Visual")
-    def status_visual(self, obj):
-        if obj.quilometragem_atual >= (obj.km_proxima_revisao - 500):
-            return "Necessita Revisão"
-        return "OPERACIONAL"
+    @admin.display(description='Consumo médio (km/L)')
+    def consumo_medio_display(self, obj):
+        v = obj.consumo_medio()
+        return f"{v:.2f} km/L" if v else '—'
 
-class AlunoInline(admin.TabularInline):
-    model = Rota.alunos.through
-    formset = AlunoRotaFormSet
-    extra = 1
-    verbose_name = "Aluno na Rota"
-    verbose_name_plural = "Alunos na Rota"
+    @admin.display(description='Custo por km (MT)')
+    def custo_km_display(self, obj):
+        v = obj.custo_por_quilometro()
+        return f"{v:.2f} MT/km" if v else '—'
+
+    @admin.display(description='Em manutenção?')
+    def em_manutencao_display(self, obj):
+        return _badge_bool(obj.em_manutencao(), 'Sim', 'Não')
+
+    @admin.display(description='Precisa revisão?')
+    def precisa_manutencao_display(self, obj):
+        return _badge_bool(obj.precisa_manutencao(), 'Sim', 'Não')
+
+    @admin.display(description='Documentação em dia?')
+    def doc_em_dia_display(self, obj):
+        return _badge_bool(obj.document_em_dia(), 'Sim', 'Não')
+
 
 @admin.register(Rota)
 class RotaAdmin(admin.ModelAdmin):
+    list_display = (
+        'nome', 'veiculo', 'motorista_display',
+        'hora_partida', 'hora_chegada',
+        'total_inscritos_display', 'vagas_display', 'ativo_display',
+    )
+    list_filter = ('ativo', 'veiculo__marca')
+    search_fields = ('nome', 'veiculo__matricula', 'veiculo__motorista__user__nome')
+    readonly_fields = ('total_inscritos', 'motorista_display', 'criado_em', 'atualizado_em')
+    autocomplete_fields = ('veiculo',)
+    filter_horizontal = ('alunos',)
+    inlines = [TransporteAlunoInline]
 
-    form = RotaForm
-    list_display = ("nome", "veiculo", "motorista", "get_lotacao", "ativo", "criado_em")
-    inlines = [AlunoInline]
-    exclude = ("alunos",)
-    list_filter = ("ativo", "veiculo__marca")
-    search_fields = ("nome", "veiculo__matricula")
-    ordering = ("nome",)
+    fieldsets = (
+        ('Identificação', {
+            'fields': ('nome', 'descricao', 'ativo')
+        }),
+        ('Veículo e Motorista', {
+            'fields': ('veiculo', 'motorista_display')
+        }),
+        ('Horário', {
+            'fields': ('hora_partida', 'hora_chegada')
+        }),
+        ('Alunos', {
+            'fields': ('alunos', 'total_inscritos')
+        }),
+        ('Auditoria', {
+            'fields': ('criado_em', 'atualizado_em'),
+            'classes': ('collapse',),
+        }),
+    )
 
-    def get_lotacao(self, obj):
-        return f"{obj.alunos.count()} / {obj.veiculo.capacidade}"
-    get_lotacao.short_description = "Lotação"
+    @admin.display(description='Motorista')
+    def motorista_display(self, obj):
+        m = obj.motorista
+        return m.user.nome if m else '—'
+
+    @admin.display(description='Inscritos')
+    def total_inscritos_display(self, obj):
+        return obj.total_inscritos
+
+    @admin.display(description='Vagas')
+    def vagas_display(self, obj):
+        return obj.veiculo.vagas_disponiveis
+
+    @admin.display(description='Estado')
+    def ativo_display(self, obj):
+        return _badge_bool(obj.ativo, 'Activa', 'Inactiva')
 
 
 @admin.register(TransporteAluno)
 class TransporteAlunoAdmin(admin.ModelAdmin):
-    list_display = ("aluno", "rota", "status", "data")
-    readonly_fields = ("data",)
-    list_filter = ("status", "rota", "data")
-    search_fields = ("aluno__user__email", "rota", "rota__nome")
-    date_hierarchy = "data"
+    list_display = ('aluno', 'rota', 'status', 'data')
+    list_filter = ('status', 'data', 'rota')
+    search_fields = ('aluno__user__nome', 'rota__nome')
+    readonly_fields = ('data',)
+    date_hierarchy = 'data'
+    autocomplete_fields = ('aluno', 'rota')
 
-@admin.display(description="Status Visual")
-def data_badge(self, obj):
-    cores = {"PENDENTE": "orange", "EMBARCADO": "green", "DESEMBARCADO": "blue"}
-    return format_html(
-        '<strong style="color: {};">{}</strong>',
-        cores.get(obj.status, "black"),
-        obj.status
+    fieldsets = (
+        (None, {
+            'fields': ('aluno', 'rota', 'status', 'data')
+        }),
+    )
+
+
+@admin.register(Manutencao)
+class ManutencaoAdmin(admin.ModelAdmin):
+    list_display = (
+        'veiculo', 'tipo', 'descricao_curta',
+        'data_inicio', 'data_fim', 'custo', 'concluida_display',
+    )
+    list_filter = ('concluida', 'tipo', 'veiculo__marca')
+    search_fields = ('veiculo__matricula', 'descricao')
+    readonly_fields = ('data_fim',)
+    autocomplete_fields = ('veiculo',)
+    date_hierarchy = 'data_inicio'
+
+    fieldsets = (
+        ('Veículo', {
+            'fields': ('veiculo', 'tipo')
+        }),
+        ('Serviço', {
+            'fields': ('descricao', 'custo')
+        }),
+        ('Datas e Quilometragem', {
+            'fields': (
+                'data_inicio', 'data_fim',
+                'quilometragem_no_momento_revisao', 'km_proxima_revisao',
+            )
+        }),
+        ('Estado', {
+            'fields': ('concluida',)
+        }),
+    )
+
+    @admin.display(description='Descrição')
+    def descricao_curta(self, obj):
+        return obj.descricao[:50] + ('…' if len(obj.descricao) > 50 else '')
+
+    @admin.display(description='Concluída')
+    def concluida_display(self, obj):
+        return _badge_bool(obj.concluida, 'Sim', 'Não')
+
+
+@admin.register(Abastecimento)
+class AbastecimentoAdmin(admin.ModelAdmin):
+    list_display = (
+        'veiculo', 'data', 'quilometragem_no_ato',
+        'quantidade_litros', 'custo_total', 'posto_combustivel',
+    )
+    list_filter = ('data', 'posto_combustivel', 'veiculo__marca')
+    search_fields = ('veiculo__matricula', 'posto_combustivel')
+    readonly_fields = ('data',)
+    autocomplete_fields = ('veiculo',)
+    date_hierarchy = 'data'
+
+    fieldsets = (
+        ('Veículo', {
+            'fields': ('veiculo', 'data')
+        }),
+        ('Abastecimento', {
+            'fields': (
+                'quilometragem_no_ato', 'quantidade_litros',
+                'custo_total', 'posto_combustivel',
+            )
+        }),
     )

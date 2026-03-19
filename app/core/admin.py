@@ -1,82 +1,220 @@
+"""
+core/admin.py
+Administração Django para o módulo core.
+"""
+
 from django.contrib import admin
-from core.models import Aluno, Encarregado, Motorista
+from django.utils.html import format_html
+from django.utils.translation import gettext_lazy as _
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from core.models import Aluno, Encarregado, Gestor, Monitor, Motorista, User
 
 
-# Ações comuns
-@admin.action(description="Marcar selecionados como ativos")
-def marcar_ativos(modeladmin, request, queryset):
-    queryset.update(ativo=True)
+def _badge_ativo(obj):
+    """Ícone visual para o campo `ativo` nas list_display."""
+    if obj.ativo:
+        return format_html('<span style="color:#16a34a;font-weight:600;">● Activo</span>')
+    return format_html('<span style="color:#dc2626;font-weight:600;">● Inactivo</span>')
 
-@admin.action(description="Marcar selecionados como inativos")
-def marcar_inativos(modeladmin, request, queryset):
-    queryset.update(ativo=False)
+_badge_ativo.short_description = "Estado"
 
-@admin.action(description="Exportar selecionados para CSV")
-def exportar_csv(modeladmin, request, queryset):
-    import csv
-    from django.http import HttpResponse
+@admin.register(User)
+class UserAdmin(BaseUserAdmin):
+    """
+    Admin para o modelo User customizado (sem username, com role).
+    Estende BaseUserAdmin substituindo os fieldsets que referenciam username.
+    """
 
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="export.csv"'
-    writer = csv.writer(response)
-    writer.writerow(['ID', 'Nome', 'Email', 'Ativo'])
+    ordering = ('nome',)
+    list_display = ('email', 'nome', 'role', 'is_active', 'is_staff', 'data_criacao')
+    list_filter = ('role', 'is_active', 'is_staff')
+    search_fields = ('email', 'nome')
+    readonly_fields = ('data_criacao', 'data_atualizacao', 'last_login')
 
-    for obj in queryset:
-        writer.writerow([obj.id, obj.user.nome, obj.user.email, obj.ativo])
+    fieldsets = (
+        (None, {
+            'fields': ('email', 'password')
+        }),
+        (_('Informação Pessoal'), {
+            'fields': ('nome', 'role')
+        }),
+        (_('Permissões'), {
+            'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions'),
+            'classes': ('collapse',),
+        }),
+        (_('Datas'), {
+            'fields': ('data_criacao', 'data_atualizacao', 'last_login'),
+            'classes': ('collapse',),
+        }),
+    )
 
-    return response
+    add_fieldsets = (
+        (None, {
+            'classes': ('wide',),
+            'fields': ('email', 'nome', 'role', 'password1', 'password2'),
+        }),
+    )
 
 
-@admin.register(Aluno)
-class AlunoAdmin(admin.ModelAdmin):
-    list_display = ("id", "user", "get_email", "encarregado", "escola_dest", "classe", "mensalidade", "idade", "ativo")
-    search_fields = ("user__nome", "user__email", "classe", "nrBI")
-    list_filter = ("ativo", "classe", "escola_dest")
-    ordering = ("user__nome",)
-    list_select_related = ("user", "encarregado")
-    readonly_fields = ("criado_em", "atualizado_em")
-    autocomplete_fields = ("user", "encarregado")
-    actions = [marcar_ativos, marcar_inativos, exportar_csv]
-
-    def get_email(self, obj):
-        return obj.user.email if obj.user else "-"
-    get_email.short_description = "Email do Aluno"
-    get_email.admin_order_field = "user__email"
-
-    def idade(self, obj):
-        return obj.idade
-    idade.short_description = "Idade"
+class AlunoInline(admin.TabularInline):
+    model = Aluno
+    extra = 0
+    show_change_link = True
+    fields = ('user', 'escola_dest', 'classe', 'mensalidade', 'ativo')
+    readonly_fields = ('criado_em',)
+    autocomplete_fields = ('user',)
 
 
 @admin.register(Encarregado)
 class EncarregadoAdmin(admin.ModelAdmin):
-    list_display = ("id", "user", "get_email", "telefone", "nrBI", "ativo")
-    search_fields = ("user__nome", "user__email", "nrBI", "telefone")
-    list_filter = ("ativo",)
-    ordering = ("user__nome",)
-    list_select_related = ("user",)
-    actions = [marcar_ativos, marcar_inativos, exportar_csv]
+    list_display = ('user', 'nrBI', 'telefone', 'total_alunos', _badge_ativo)
+    list_filter = ('ativo',)
+    search_fields = ('user__nome', 'user__email', 'nrBI')
+    readonly_fields = ('idade', 'criado_em', 'atualizado_em')
+    autocomplete_fields = ('user',)
+    inlines = [AlunoInline]
 
-    def get_email(self, obj):
-        return obj.user.email if obj.user else "-"
-    get_email.short_description = "Email"
-    get_email.admin_order_field = "user__email"
+    fieldsets = (
+        ('Utilizador', {
+            'fields': ('user', 'ativo')
+        }),
+        ('Dados Pessoais', {
+            'fields': ('data_nascimento', 'idade', 'nrBI', 'telefone', 'endereco')
+        }),
+        ('Auditoria', {
+            'fields': ('criado_em', 'atualizado_em'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    @admin.display(description='Alunos')
+    def total_alunos(self, obj):
+        return obj.alunos.count()
+
+
+@admin.register(Aluno)
+class AlunoAdmin(admin.ModelAdmin):
+    list_display = ('user', 'escola_dest', 'classe', 'encarregado', 'mensalidade', _badge_ativo)
+    list_filter = ('ativo', 'escola_dest', 'classe')
+    search_fields = ('user__nome', 'user__email', 'nrBI', 'escola_dest')
+    readonly_fields = ('idade', 'criado_em', 'atualizado_em')
+    autocomplete_fields = ('user', 'encarregado')
+
+    fieldsets = (
+        ('Utilizador', {
+            'fields': ('user', 'encarregado', 'ativo')
+        }),
+        ('Dados Pessoais', {
+            'fields': ('data_nascimento', 'idade', 'nrBI', 'telefone', 'endereco')
+        }),
+        ('Dados Escolares', {
+            'fields': ('escola_dest', 'classe', 'mensalidade')
+        }),
+        ('Auditoria', {
+            'fields': ('criado_em', 'atualizado_em'),
+            'classes': ('collapse',),
+        }),
+    )
 
 
 @admin.register(Motorista)
 class MotoristaAdmin(admin.ModelAdmin):
-    list_display = ("id", "user", "get_email", "nrBI", "carta_conducao", "telefone", "idade", "salario", "ativo")
-    search_fields = ("user__nome", "user__email", "nrBI", "carta_conducao", "telefone")
-    list_filter = ("ativo",)
-    ordering = ("user__nome",)
-    list_select_related = ("user",)
-    actions = [marcar_ativos, marcar_inativos, exportar_csv]
+    list_display = ('user', 'carta_conducao', 'validade_da_carta', 'carta_status', 'salario', _badge_ativo)
+    list_filter = ('ativo',)
+    search_fields = ('user__nome', 'user__email', 'carta_conducao', 'nrBI')
+    readonly_fields = ('idade', 'criado_em', 'atualizado_em', 'carta_status')
+    autocomplete_fields = ('user',)
 
-    def get_email(self, obj):
-        return obj.user.email if obj.user else "-"
-    get_email.short_description = "Email"
-    get_email.admin_order_field = "user__email"
+    fieldsets = (
+        ('Utilizador', {
+            'fields': ('user', 'ativo')
+        }),
+        ('Dados Pessoais', {
+            'fields': ('data_nascimento', 'idade', 'nrBI', 'telefone', 'endereco')
+        }),
+        ('Carta de Condução', {
+            'fields': ('carta_conducao', 'validade_da_carta', 'carta_status')
+        }),
+        ('Financeiro', {
+            'fields': ('salario',)
+        }),
+        ('Auditoria', {
+            'fields': ('criado_em', 'atualizado_em'),
+            'classes': ('collapse',),
+        }),
+    )
 
-    def idade(self, obj):
-        return obj.idade
-    idade.short_description = "Idade"
+    @admin.display(description='Carta')
+    def carta_status(self, obj):
+        if obj.carta_conducao_vencida():
+            return format_html('<span style="color:#dc2626;font-weight:600;">● Vencida</span>')
+        return format_html('<span style="color:#16a34a;font-weight:600;">● Válida</span>')
+
+
+@admin.register(Gestor)
+class GestorAdmin(admin.ModelAdmin):
+    list_display = ('user', 'departamento', 'salario', 'total_supervisionados', _badge_ativo)
+    list_filter = ('ativo', 'departamento')
+    search_fields = ('user__nome', 'user__email', 'nrBI')
+    readonly_fields = ('idade', 'criado_em', 'atualizado_em')
+    autocomplete_fields = ('user',)
+    filter_horizontal = ('motoristas_supervisionados',)
+
+    fieldsets = (
+        ('Utilizador', {
+            'fields': ('user', 'departamento', 'ativo')
+        }),
+        ('Dados Pessoais', {
+            'fields': ('data_nascimento', 'idade', 'nrBI', 'telefone', 'endereco')
+        }),
+        ('Financeiro', {
+            'fields': ('salario',)
+        }),
+        ('Supervisão', {
+            'fields': ('motoristas_supervisionados',),
+            'classes': ('collapse',),
+        }),
+        ('Auditoria', {
+            'fields': ('criado_em', 'atualizado_em'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    @admin.display(description='Supervisionados')
+    def total_supervisionados(self, obj):
+        return obj.motoristas_supervisionados.count()
+
+
+@admin.register(Monitor)
+class MonitorAdmin(admin.ModelAdmin):
+    list_display = ('user', 'salario', 'rota_ativa_display', _badge_ativo)
+    list_filter = ('ativo',)
+    search_fields = ('user__nome', 'user__email', 'nrBI')
+    readonly_fields = ('idade', 'criado_em', 'atualizado_em', 'rota_ativa_display')
+    autocomplete_fields = ('user',)
+
+    fieldsets = (
+        ('Utilizador', {
+            'fields': ('user', 'ativo')
+        }),
+        ('Dados Pessoais', {
+            'fields': ('data_nascimento', 'idade', 'nrBI', 'telefone', 'endereco')
+        }),
+        ('Financeiro', {
+            'fields': ('salario',)
+        }),
+        ('Rota Actual', {
+            'fields': ('rota_ativa_display',)
+        }),
+        ('Auditoria', {
+            'fields': ('criado_em', 'atualizado_em'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    @admin.display(description='Rota Activa')
+    def rota_ativa_display(self, obj):
+        rota = obj.rota_ativa
+        if rota:
+            return format_html('<a href="/admin/transporte/rota/{}/change/">{}</a>', rota.pk, rota)
+        return '—'

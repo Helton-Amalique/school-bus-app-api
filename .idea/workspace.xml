@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="ca6e7bdf-dfa6-4be0-8dd4-9685b9b5f5b2" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/app/accounts/admin.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/accounts/admin.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/accounts/migrations/0001_initial.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/accounts/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/accounts/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/accounts/permissions.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/accounts/permissions.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/accounts/serializers.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/accounts/serializers.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/accounts/tests/test_ApiTestCase.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/accounts/tests/test_ApiTestCase.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/accounts/tests/test_models_account.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/accounts/tests/test_models_account.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/accounts/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/accounts/urls.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/accounts/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/accounts/views.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/app/settings.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/app/settings.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/app/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/app/urls.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/admin.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/admin.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/apps.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/apps.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/management/commands/notificar_cartas_expiradas.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/management/commands/notificar_cartas_expiradas.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/migrations/0001_initial.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/migrations/0001_initial.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/serializers.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/serializers.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/signals.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/signals.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/tests/test_models.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/tests/test_models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/tests/test_user_api.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/urls.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/core/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/core/views.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/transporte/admin.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/transporte/admin.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/transporte/forms.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/transporte/forms.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/transporte/migrations/0001_initial.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/transporte/migrations/0001_initial.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/transporte/migrations/0002_manutencao.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/transporte/migrations/0003_auto_20260224_1245.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/transporte/migrations/0004_auto_20260227_0816.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/transporte/migrations/0005_auto_20260227_1100.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/transporte/migrations/0006_abastecimento.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/transporte/migrations/0007_auto_20260302_1732.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/transporte/migrations/0008_auto_20260302_1908.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/transporte/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/transporte/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/transporte/serializers.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/transporte/serializers.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/transporte/signals.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/transporte/signals.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/transporte/test/test_api.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/transporte/test/test_transporte.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/transporte/test/test_transporte.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/transporte/tests.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/transporte/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/transporte/urls.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/transporte/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/app/transporte/views.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "associatedIndex": 0
+}]]></component>
+  <component name="ProjectId" id="3B6Qsuu6ayFSqGBKjF0GsyvMmwI" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.OpenDjangoStructureViewOnStart": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "main",
+    "last_opened_file_path": "/home/xipoko/Documents/Projects/school-bus-app-api",
+    "nodejs_package_manager_path": "npm",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="RunManager">
+    <configuration name="school-bus-app-api" type="Python.DjangoServer" factoryName="Django server">
+      <module name="school-bus-app-api" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="launchJavascriptDebuger" value="false" />
+      <option name="port" value="8000" />
+      <option name="host" value="" />
+      <option name="additionalOptions" value="" />
+      <option name="browserUrl" value="" />
+      <option name="runTestServer" value="false" />
+      <option name="runNoReload" value="false" />
+      <option name="useCustomRunCommand" value="false" />
+      <option name="customRunCommand" value="" />
+      <method v="2" />
+    </configuration>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-js-predefined-d6986cc7102b-6a121458b545-JavaScript-PY-251.25410.159" />
+        <option value="bundled-python-sdk-e0ed3721d81e-36ea0e71a18c-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-251.25410.159" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="ca6e7bdf-dfa6-4be0-8dd4-9685b9b5f5b2" name="Changes" comment="" />
+      <created>1773807255652</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1773807255652</updated>
+      <workItem from="1773807268883" duration="251000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+</project>

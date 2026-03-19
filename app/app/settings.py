@@ -11,7 +11,7 @@ https://docs.djangoproject.com/en/3.2/ref/settings/
 """
 import os
 from pathlib import Path
-
+from datetime import timedelta
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -37,16 +37,19 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'core',
-    'accounts',
-    'transporte',
 
-    'phonenumber_field',
+    'rest_framework.authtoken',
+    'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
+    'django_filters',
     'rest_framework',
     'drf_spectacular',
-    'phonenumbers',
-    'rest_framework.authtoken'
+    'phonenumber_field',
 
+    # 'accounts',
+    'core',
+    'transporte',
+    'financeiro',
 ]
 
 MIDDLEWARE = [
@@ -127,6 +130,7 @@ USE_L10N = True
 USE_TZ = True
 
 
+
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.2/howto/static-files/
 
@@ -137,9 +141,63 @@ STATIC_URL = '/static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-AUTH_USER_MODEL = 'accounts.User'
+PHONENUMBER_DEFAULT_REGION = 'MZ'
+
+AUTH_USER_MODEL = 'core.User'
 
 REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.SearchFilter',
+        'rest_framework.filters.OrderingFilter',
+    ],
+
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 25,
 }
 
+
+SIMPLE_JWT = {
+    # Duração dos tokens
+    'ACCESS_TOKEN_LIFETIME':  timedelta(hours=8),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+
+    # Rotação do refresh token a cada uso
+    'ROTATE_REFRESH_TOKENS':  True,
+    'BLACKLIST_AFTER_ROTATION': True,
+
+    # Campo de identificação
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+
+    # Claims adicionais no token (nome e role do utilizador)
+    'TOKEN_OBTAIN_SERIALIZER': 'core.token_serializers.CustomTokenObtainPairSerializer',
+}
+
+# ──────────────────────────────────────────────
+# DRF SPECTACULAR (OpenAPI / Swagger)
+# ──────────────────────────────────────────────
+
+SPECTACULAR_SETTINGS = {
+    'TITLE':       'Sistema de Transporte Escolar — API',
+    'DESCRIPTION': (
+        'API REST para gestão de transporte escolar.\n\n'
+        '**Módulos:** core · transporte · financeiro\n\n'
+        '**Autenticação:** JWT — obter token em `/api/v1/auth/token/`'
+    ),
+    'VERSION':     '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+
+    'SCHEMA_PATH_PREFIX': r'/api/v1/',
+    'COMPONENT_SPLIT_REQUEST': True,
+    'SORT_OPERATIONS': False,
+}

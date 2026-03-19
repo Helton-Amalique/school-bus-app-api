@@ -1,16 +1,23 @@
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-from transporte import views
+"""
+transporte/urls.py"""
 
-app_name = "transportes"
+from rest_framework.routers import DefaultRouter
+
+from transporte.views import (
+    AbastecimentoViewSet,
+    ManutencaoViewSet,
+    RotaViewSet,
+    TransporteAlunoViewSet,
+    VeiculoViewSet,
+)
+
+app_name = 'transporte'
 
 router = DefaultRouter()
+router.register(r'veiculos', VeiculoViewSet, basename='veiculo')
+router.register(r'rotas', RotaViewSet, basename='rota')
+router.register(r'transportes', TransporteAlunoViewSet, basename='transporte')
+router.register(r'manutencoes', ManutencaoViewSet, basename='manutencao')
+router.register(r'abastecimentos', AbastecimentoViewSet, basename='abastecimento')
 
-router.register(r'veiculos', views.VeiculoViewSet, basename='veiculo')
-router.register(r'rotas', views.RotaViewSet, basename='rota')
-router.register(r'check-in', views.TransportViewSet, basename='transporte-aluno')
-router.register(r'manutencoes', views.ManutencaoViewSet, basename='manutencao')
-
-urlpatterns = [
-    path('', include(router.urls)),
-]
+urlpatterns = router.urls
