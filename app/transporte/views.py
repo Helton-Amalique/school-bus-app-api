@@ -51,7 +51,26 @@ from transporte.serializers import (
 )
 
 
+# ──────────────────────────────────────────────
+# VEICULO VIEWSET
+# ──────────────────────────────────────────────
+
 class VeiculoViewSet(viewsets.ModelViewSet):
+    """
+    CRUD completo de veículos.
+
+    GET    /veiculos/                      → lista leve (VeiculoListSerializer)
+    POST   /veiculos/                      → criar (admin)
+    GET    /veiculos/{id}/                 → detalhe completo
+    PUT/PATCH /veiculos/{id}/              → editar (admin)
+    DELETE /veiculos/{id}/                 → desactivar (admin, soft)
+    GET    /veiculos/{id}/estatisticas/    → métricas calculadas
+    GET    /veiculos/{id}/rotas-ativas/    → rotas activas do veículo
+    GET    /veiculos/{id}/manutencoes/     → histórico de manutenções
+    GET    /veiculos/{id}/abastecimentos/  → histórico de abastecimentos
+    GET    /veiculos/a-precisar-revisao/   → veículos que precisam de revisão
+    GET    /veiculos/documentos-a-vencer/  → documentação a expirar em 30 dias
+    """
 
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -83,8 +102,7 @@ class VeiculoViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ('create', 'update', 'partial_update', 'destroy'):
             return [IsGestor()]
-        if self.action in ('retrieve', 'estatisticas', 'rotas_ativas',
-                           'manutencoes', 'abastecimentos'):
+        if self.action in ('retrieve', 'estatisticas', 'rotas_ativas', 'manutencoes', 'abastecimentos'):
             return [PodeVerVeiculo()]
         return [IsGestorOuMotoristaOuMonitor()]
 
@@ -119,7 +137,7 @@ class VeiculoViewSet(viewsets.ModelViewSet):
     def rotas_ativas(self, request, pk=None):
         """Lista as rotas activas do veículo."""
         veiculo = self.get_object()
-        rotas = veiculo.rotas.filter(ativo=True).select_related('veiculo__motorista__user')
+        rotas   = veiculo.rotas.filter(ativo=True).select_related('veiculo__motorista__user')
         serializer = RotaSerializer(rotas, many=True)
         return Response(serializer.data)
 
@@ -166,7 +184,25 @@ class VeiculoViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
+# ──────────────────────────────────────────────
+# ROTA VIEWSET
+# ──────────────────────────────────────────────
+
 class RotaViewSet(viewsets.ModelViewSet):
+    """
+    CRUD de rotas.
+
+    GET    /rotas/                          → lista
+    POST   /rotas/                          → criar (admin)
+    GET    /rotas/{id}/                     → detalhe
+    PUT/PATCH /rotas/{id}/                  → editar (admin)
+    DELETE /rotas/{id}/                     → desactivar (admin, soft)
+    GET    /rotas/{id}/alunos/              → alunos inscritos
+    POST   /rotas/{id}/adicionar-aluno/     → inscrever aluno
+    POST   /rotas/{id}/remover-aluno/       → remover aluno
+    GET    /rotas/{id}/presenca-hoje/       → registos de presença de hoje
+    GET    /rotas/{id}/resumo-hoje/         → contagem por status hoje
+    """
 
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -295,7 +331,22 @@ class RotaViewSet(viewsets.ModelViewSet):
         return Response(list(resumo))
 
 
+# ──────────────────────────────────────────────
+# TRANSPORTE ALUNO VIEWSET
+# ──────────────────────────────────────────────
+
 class TransporteAlunoViewSet(viewsets.ModelViewSet):
+    """
+    Gestão de check-in/check-out dos alunos.
+
+    GET    /transportes/             → lista (filtrada por motorista se aplicável)
+    POST   /transportes/             → criar registo (admin)
+    GET    /transportes/{id}/        → detalhe
+    PATCH  /transportes/{id}/        → actualizar status (motorista/monitor)
+    DELETE /transportes/{id}/        → apagar (admin)
+    GET    /transportes/hoje/        → registos do dia actual
+    GET    /transportes/resumo-hoje/ → contagem por status hoje
+    """
 
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
@@ -309,23 +360,34 @@ class TransporteAlunoViewSet(viewsets.ModelViewSet):
             'rota__veiculo__motorista__user'
         )
 
+        # Utilizador anónimo — devolve queryset vazio
+        if not user or not user.is_authenticated:
+            return qs.none()
+
+        # Motoristas vêem apenas os registos da sua rota
         try:
             motorista = user.perfil_motorista
             return qs.filter(rota__veiculo__motorista=motorista)
-        except ObjectDoesNotExist:
+        except (ObjectDoesNotExist, AttributeError):
             pass
+
+        # Monitores vêem apenas os registos da sua rota activa
         try:
             monitor = user.perfil_monitor
             rota_ativa = monitor.rota_ativa
             if rota_ativa:
                 return qs.filter(rota=rota_ativa)
-        except ObjectDoesNotExist:
+        except (ObjectDoesNotExist, AttributeError):
             pass
+
+        # Encarregados vêem apenas os registos dos seus alunos
         try:
             encarregado = user.perfil_encarregado
             return qs.filter(aluno__encarregado=encarregado)
-        except ObjectDoesNotExist:
+        except (ObjectDoesNotExist, AttributeError):
             pass
+
+        # Admin e Gestores vêem tudo
         return qs
 
     def get_serializer_class(self):
@@ -342,7 +404,15 @@ class TransporteAlunoViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='check-in')
     def check_in(self, request, pk=None):
+        """
+        Regista a transição de status de um aluno na rota.
 
+        Transições válidas:
+          PENDENTE → EMBARCADO      (embarque no início da rota)
+          EMBARCADO → DESEMBARCADO  (desembarque no destino)
+
+        Payload: { "status": "EMBARCADO" | "DESEMBARCADO" }
+        """
         registo = self.get_object()
         serializer = CheckInSerializer(
             registo,
@@ -373,7 +443,22 @@ class TransporteAlunoViewSet(viewsets.ModelViewSet):
         return Response(list(resumo))
 
 
+# ──────────────────────────────────────────────
+# MANUTENCAO VIEWSET
+# ──────────────────────────────────────────────
+
 class ManutencaoViewSet(viewsets.ModelViewSet):
+    """
+    CRUD de manutenções.
+
+    GET    /manutencoes/              → lista
+    POST   /manutencoes/              → criar (admin)
+    GET    /manutencoes/{id}/         → detalhe
+    PUT/PATCH /manutencoes/{id}/      → editar (admin)
+    DELETE /manutencoes/{id}/         → apagar (admin)
+    POST   /manutencoes/{id}/concluir/ → concluir manutenção
+    GET    /manutencoes/em-curso/     → manutenções não concluídas
+    """
 
     serializer_class = ManutencaoSerializer
     permission_classes = [IsGestor]
@@ -420,7 +505,21 @@ class ManutencaoViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
+# ──────────────────────────────────────────────
+# ABASTECIMENTO VIEWSET
+# ──────────────────────────────────────────────
+
 class AbastecimentoViewSet(viewsets.ModelViewSet):
+    """
+    Registo de abastecimentos.
+
+    GET    /abastecimentos/              → lista (filtrar: ?veiculo=<id>)
+    POST   /abastecimentos/              → registar
+    GET    /abastecimentos/{id}/         → detalhe
+    PUT/PATCH /abastecimentos/{id}/      → editar
+    DELETE /abastecimentos/{id}/         → apagar (admin)
+    GET    /abastecimentos/resumo-frota/ → custo e litros totais por veículo
+    """
 
     serializer_class = AbastecimentoSerializer
     permission_classes = [IsAuthenticated]

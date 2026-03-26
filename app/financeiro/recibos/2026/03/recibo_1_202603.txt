@@ -1,0 +1,9 @@
+==============================
+      RECIBO DE PAGAMENTO
+==============================
+Aluno  : Clelia Telia
+Mês    : March de 2026
+Valor  : 7000.00 MT
+Data   : 19/03/2026
+Estado : PAGO TOTALMENTE
+==============================

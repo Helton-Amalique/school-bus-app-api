@@ -45,8 +45,9 @@ INSTALLED_APPS = [
     'rest_framework',
     'drf_spectacular',
     'phonenumber_field',
+    'django_celery_beat',
+    'django_celery_results',
 
-    # 'accounts',
     'core',
     'transporte',
     'financeiro',
@@ -168,7 +169,7 @@ REST_FRAMEWORK = {
 
 SIMPLE_JWT = {
     # Duração dos tokens
-    'ACCESS_TOKEN_LIFETIME':  timedelta(hours=8),
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=8),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
 
     # Rotação do refresh token a cada uso
@@ -188,16 +189,46 @@ SIMPLE_JWT = {
 # ──────────────────────────────────────────────
 
 SPECTACULAR_SETTINGS = {
-    'TITLE':       'Sistema de Transporte Escolar — API',
+    'TITLE': 'Sistema de Transporte Escolar — API',
     'DESCRIPTION': (
         'API REST para gestão de transporte escolar.\n\n'
         '**Módulos:** core · transporte · financeiro\n\n'
         '**Autenticação:** JWT — obter token em `/api/v1/auth/token/`'
     ),
-    'VERSION':     '1.0.0',
+    'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
 
     'SCHEMA_PATH_PREFIX': r'/api/v1/',
     'COMPONENT_SPLIT_REQUEST': True,
     'SORT_OPERATIONS': False,
+}
+
+# Africa's Talking — SMS
+import os
+AT_USERNAME = os.environ.get('AT_USERNAME', 'sandbox')
+AT_API_KEY = os.environ.get('AT_API_KEY', '')
+AT_SENDER_ID = os.environ.get('AT_SENDER_ID', '')
+
+# Celery + Redis
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://redis:6379/0')
+CELERY_RESULT_BACKEND = 'django-db'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Africa/Maputo'
+CELERY_ENABLE_UTC = True
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+CELERYBEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+
+# Cache — Redis
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': os.environ.get('REDIS_URL', 'redis://redis:6379/0'),
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        },
+        'KEY_PREFIX': 'escola',
+        'TIMEOUT': 300,
+    }
 }

@@ -95,7 +95,6 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS('\nProcessamento concluído.'))
 
-
     def _enviar_lote(self, motoristas, assunto, template, dry_run):
         """Itera os motoristas, envia (ou simula) e-mail, devolve o total enviado."""
         enviados = 0

@@ -278,7 +278,7 @@ class GestorSerializer(PerfilReadMixin):
     motoristas_supervisionados = MotoristaListSerializer(many=True, read_only=True)
 
     class Meta:
-        model  = Gestor
+        model = Gestor
         fields = PerfilReadMixin.PERFIL_READ_FIELDS + (
             'departamento', 'departamento_display', 'salario',
             'pode_aprovar_manutencao', 'pode_aprovar_abastecimento',

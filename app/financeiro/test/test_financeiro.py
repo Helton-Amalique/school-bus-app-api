@@ -56,7 +56,7 @@ class ConfiguracaoFinanceiraTests(TestCase):
             cfg2.save()
 
     def test_data_limite_para_mes(self):
-        cfg    = criar_config_financeira(dia_limite_pagamento=10)
+        cfg = criar_config_financeira(dia_limite_pagamento=10)
         limite = cfg.data_limite_para_mes(datetime.date(2025, 3, 1))
         self.assertEqual(limite, datetime.date(2025, 3, 10))
 
@@ -72,7 +72,7 @@ class ConfiguracaoFinanceiraTests(TestCase):
     def test_delete_nao_remove_configuracao(self):
         from financeiro.models import ConfiguracaoFinanceira
         cfg = criar_config_financeira()
-        pk  = cfg.pk
+        pk = cfg.pk
         cfg.delete()
         self.assertTrue(ConfiguracaoFinanceira.objects.filter(pk=pk).exists())
 
@@ -81,7 +81,7 @@ class TransacaoTests(TestCase):
 
     def setUp(self):
         self.cat_receita = criar_categoria('Mensalidade', 'RECEITA')
-        self.cat_despesa = criar_categoria('Manutenção',  'DESPESA')
+        self.cat_despesa = criar_categoria('Manutenção', 'DESPESA')
 
     def test_criar_transacao_receita(self):
         from financeiro.models import Transacao
@@ -224,7 +224,6 @@ class MensalidadeManagerTests(TestCase):
         criar_mensalidade(aluno=self.aluno, mes_referente=mes_passado, estado='ATRASADO')
         self.assertEqual(Mensalidade.objects.atrasadas().count(), 1)
 
-
     def test_gerar_mesnsalidades_em_massa(self):
         from financeiro.models import Mensalidade
         criar_aluno(nome="Aluno 2", mensalidade=Decimal('3000.00'))
@@ -238,7 +237,7 @@ class MensalidadeManagerTests(TestCase):
         from financeiro.models import Mensalidade
         aluno1 = criar_aluno()
         aluno2 = criar_aluno()
-        hoje   = datetime.date.today()
+        hoje = datetime.date.today()
         Mensalidade.objects.all().delete()
 
         criadas = Mensalidade.objects.gerar_mensalidades_mes(hoje.month, hoje.year)
@@ -259,7 +258,7 @@ class MensalidadeManagerTests(TestCase):
 
     def test_total_devedor_mes_retorna_decimal(self):
         from financeiro.models import Mensalidade
-        hoje  = datetime.date.today()
+        hoje = datetime.date.today()
         total = Mensalidade.objects.total_devedor_mes(hoje.month, hoje.year)
         self.assertIsInstance(total, Decimal)
         self.assertGreaterEqual(total, Decimal('0.00'))
@@ -278,14 +277,14 @@ class ReciboTests(TestCase):
     def test_recibo_gerado_automaticamente_ao_pagar(self):
         from financeiro.models import Recibo
         aluno = criar_aluno(mensalidade=Decimal('2500.00'))
-        m     = criar_mensalidade(aluno=aluno)
+        m = criar_mensalidade(aluno=aluno)
         m.registrar_pagamento(m.valor_base, 'TRANSFERENCIA')
         self.assertTrue(Recibo.objects.filter(mensalidade=m).exists())
 
     def test_recibo_nao_duplicado(self):
         from financeiro.models import Recibo
         aluno = criar_aluno(mensalidade=Decimal('2500.00'))
-        m     = criar_mensalidade(aluno=aluno)
+        m = criar_mensalidade(aluno=aluno)
         m.registrar_pagamento(m.valor_base, 'TRANSFERENCIA')
         m.refresh_from_db()
         m._gerar_recibo_automatico()  # segunda chamada não deve duplicar
@@ -304,7 +303,7 @@ class SignalMensalidadeAutomaticaTests(TestCase):
     def test_criar_aluno_gera_mensalidade_do_mes(self):
         from financeiro.models import Mensalidade
         aluno = criar_aluno()
-        hoje  = datetime.date.today()
+        hoje = datetime.date.today()
         self.assertTrue(
             Mensalidade.objects.filter(
                 aluno=aluno,
@@ -336,7 +335,7 @@ class MensalidadeAPITests(BaseAPITestCase):
     def setUp(self):
         super().setUp()
         self.autenticar_como_gestor(email='gestor_men@teste.co.mz')
-        self.aluno       = criar_aluno(mensalidade=Decimal('2500.00'))
+        self.aluno = criar_aluno(mensalidade=Decimal('2500.00'))
         self.mensalidade = criar_mensalidade(aluno=self.aluno)
 
     def test_listar_mensalidades(self):
@@ -441,7 +440,7 @@ class ManagementCommandExecucaoRealTests(TestCase):
 
     def test_aplicar_multas_actualiza_mensalidades_atrasadas(self):
         from financeiro.models import Mensalidade
-        aluno       = criar_aluno()
+        aluno = criar_aluno()
         mes_passado = data_passada(40).replace(day=1)
         Mensalidade.objects.all().delete()
         m = criar_mensalidade(aluno=aluno, mes_referente=mes_passado)
@@ -776,7 +775,7 @@ class GerarLancamentoSalarioRemovidoTests(TestCase):
         """
         from financeiro.models import BalancoMensal, FolhaPagamento, Transacao
 
-        f    = criar_funcionario()
+        f = criar_funcionario()
         hoje = datetime.date.today()
 
         folha = FolhaPagamento.objects.create(
@@ -808,7 +807,7 @@ class GerarLancamentoSalarioRemovidoTests(TestCase):
         """
         from financeiro.models import BalancoMensal, Transacao
 
-        cat  = criar_categoria('Salários', 'DESPESA')
+        cat = criar_categoria('Salários', 'DESPESA')
         hoje = datetime.date.today()
 
         # Simular o comportamento antigo — criar Transacao PENDENTE directamente

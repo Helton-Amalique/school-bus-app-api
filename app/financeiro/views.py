@@ -17,11 +17,20 @@ ViewSets:
 
 from datetime import date
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Count, Q, Sum
 from django_filters.rest_framework import DjangoFilterBackend
+
+from financeiro.filters import (
+    DespesaGeralFilter,
+    DespesaVeiculoFilter,
+    FolhaPagamentoFilter,
+    MensalidadeFilter,
+    TransacaoFilter,
+)
 from rest_framework import filters, mixins, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAdminUser, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
 
 from core.permissions import (
     IsGestor,
@@ -62,13 +71,23 @@ from financeiro.serializers import (
 )
 
 
+# ──────────────────────────────────────────────
+# CONFIGURAÇÃO FINANCEIRA
+# ──────────────────────────────────────────────
+
 class ConfiguracaoFinanceiraViewSet(
     mixins.RetrieveModelMixin,
     mixins.UpdateModelMixin,
     viewsets.GenericViewSet,
 ):
+    """
+    Singleton de configuração financeira.
 
-    serializer_class = ConfiguracaoFinanceiraSerializer
+    GET   /configuracao/1/       → ler configuração
+    PUT/PATCH /configuracao/1/   → editar (admin)
+    """
+
+    serializer_class   = ConfiguracaoFinanceiraSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
@@ -79,29 +98,59 @@ class ConfiguracaoFinanceiraViewSet(
         return [IsGestor()]
 
 
-class CategoriaViewSet(viewsets.ModelViewSet):
+# ──────────────────────────────────────────────
+# CATEGORIA
+# ──────────────────────────────────────────────
 
-    serializer_class = CategoriaSerializer
+class CategoriaViewSet(viewsets.ModelViewSet):
+    """
+    CRUD de categorias.
+
+    GET    /categorias/          → lista (filtrar: ?tipo=RECEITA|DESPESA)
+    POST   /categorias/          → criar (admin)
+    GET    /categorias/{id}/     → detalhe
+    PUT/PATCH /categorias/{id}/  → editar (admin)
+    DELETE /categorias/{id}/     → eliminar (admin)
+    """
+
+    serializer_class   = CategoriaSerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ['tipo']
-    search_fields = ['nome']
+    filter_backends    = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields   = ['tipo']
+    search_fields      = ['nome']
 
     def get_queryset(self):
         return Categoria.objects.all()
 
     def get_permissions(self):
+        # Categorias: só gestores gerem
         return [IsGestor()]
 
 
+# ──────────────────────────────────────────────
+# TRANSACAO
+# ──────────────────────────────────────────────
+
 class TransacaoViewSet(viewsets.ModelViewSet):
+    """
+    Ledger central de transacções.
+
+    GET    /transacoes/                → lista
+    POST   /transacoes/                → criar (admin)
+    GET    /transacoes/{id}/           → detalhe
+    PUT/PATCH /transacoes/{id}/        → editar (admin)
+    DELETE /transacoes/{id}/           → eliminar (admin, só PENDENTE/ATRASADO)
+    GET    /transacoes/resumo/         → totais por tipo e status
+    GET    /transacoes/em-atraso/      → transacções vencidas não pagas
+    GET    /transacoes/por-aluno/      → receitas de um aluno específico
+    """
 
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status', 'metodo', 'categoria', 'categoria__tipo', 'aluno']
-    search_fields = ['descricao', 'aluno__user__nome']
-    ordering_fields = ['data_vencimento', 'valor', 'status']
-    ordering = ['-data_vencimento']
+    filter_backends    = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_class    = TransacaoFilter
+    search_fields      = ['descricao', 'aluno__user__nome']
+    ordering_fields    = ['data_vencimento', 'valor', 'status']
+    ordering           = ['-data_vencimento']
 
     def get_queryset(self):
         return (
@@ -115,6 +164,7 @@ class TransacaoViewSet(viewsets.ModelViewSet):
         return TransacaoSerializer
 
     def get_permissions(self):
+        # Transacções: acesso exclusivo a gestores
         return [IsGestor()]
 
     def perform_destroy(self, instance):
@@ -152,7 +202,8 @@ class TransacaoViewSet(viewsets.ModelViewSet):
     def em_atraso(self, request):
         """Transacções vencidas e não pagas."""
         qs = self.get_queryset().filter(
-            Q(status='ATRASADO') | Q(status='PENDENTE', data_vencimento__lt=date.today())
+            Q(status='ATRASADO') |
+            Q(status='PENDENTE', data_vencimento__lt=date.today())
         )
         serializer = TransacaoSerializer(qs, many=True)
         return Response(serializer.data)
@@ -176,7 +227,23 @@ class TransacaoViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
+# ──────────────────────────────────────────────
+# FUNCIONARIO
+# ──────────────────────────────────────────────
+
 class FuncionarioViewSet(viewsets.ModelViewSet):
+    """
+    CRUD de funcionários.
+
+    GET    /funcionarios/                    → lista
+    POST   /funcionarios/                    → criar (admin)
+    GET    /funcionarios/{id}/               → detalhe
+    PUT/PATCH /funcionarios/{id}/            → editar (admin)
+    DELETE /funcionarios/{id}/               → soft delete (admin)
+    GET    /funcionarios/me/                 → perfil financeiro próprio
+    GET    /funcionarios/{id}/folhas/        → folhas salariais do funcionário
+    POST   /funcionarios/{id}/demitir/       → demitir (admin)
+    """
 
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -247,11 +314,30 @@ class FuncionarioViewSet(viewsets.ModelViewSet):
         return Response({'mensagem': f'{funcionario.user.nome} demitido com sucesso.'})
 
 
+# ──────────────────────────────────────────────
+# MENSALIDADE
+# ──────────────────────────────────────────────
+
 class MensalidadeViewSet(viewsets.ModelViewSet):
+    """
+    Gestão de mensalidades.
+
+    GET    /mensalidades/                      → lista leve
+    POST   /mensalidades/                      → criar (admin)
+    GET    /mensalidades/{id}/                 → detalhe completo
+    PUT/PATCH /mensalidades/{id}/              → editar (admin)
+    DELETE /mensalidades/{id}/                 → eliminar (admin, só PENDENTE)
+    GET    /mensalidades/do-mes/               → mensalidades de um mês (?mes=M&ano=A)
+    GET    /mensalidades/em-atraso/            → mensalidades atrasadas
+    POST   /mensalidades/{id}/pagar/           → registar pagamento
+    POST   /mensalidades/{id}/aplicar-multa/   → aplicar multa
+    POST   /mensalidades/gerar/                → gerar mensalidades em massa
+    GET    /mensalidades/resumo-mes/           → contagem por estado (?mes=M&ano=A)
+    """
 
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['estado', 'aluno', 'mes_referente']
+    filterset_class = MensalidadeFilter
     search_fields = ['aluno__user__nome', 'nr_fatura']
     ordering_fields = ['mes_referente', 'valor_base', 'estado']
     ordering = ['-mes_referente']
@@ -265,18 +351,22 @@ class MensalidadeViewSet(viewsets.ModelViewSet):
             .prefetch_related('recibo_emitido')
         )
 
+        # Utilizador anónimo ou sem autenticação — devolve queryset vazio
+        # (o drf-spectacular usa AnonymousUser ao gerar o schema)
+        if not user or not user.is_authenticated:
+            return qs.none()
+
         # Encarregados vêem apenas as mensalidades dos seus alunos
         try:
             encarregado = user.perfil_encarregado
             return qs.filter(aluno__encarregado=encarregado)
-        except Exception:
+        except (ObjectDoesNotExist, AttributeError):
             pass
 
-        # Alunos vêem apenas as suas próprias mensalidades
         try:
             aluno = user.perfil_aluno
             return qs.filter(aluno=aluno)
-        except Exception:
+        except (ObjectDoesNotExist, AttributeError):
             pass
 
         return qs
@@ -290,7 +380,7 @@ class MensalidadeViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ('create', 'update', 'partial_update',
-                           'destroy', 'gerar', 'pagar', 'aplicar_multa'):
+                           'destroy', 'gerar', 'pagar', 'aplicar_multa', 'isentar'):
             return [IsGestor()]
         # list, retrieve, do_mes, em_atraso, resumo_mes
         return [PodeLerMensalidade()]
@@ -352,13 +442,15 @@ class MensalidadeViewSet(viewsets.ModelViewSet):
             )
 
         serializer = PagamentoSerializer(
-            data=request.data, context={'mensalidade': mensalidade}
+            data=request.data,
+            context={'mensalidade': mensalidade}
         )
         serializer.is_valid(raise_exception=True)
 
         try:
             mensalidade.registrar_pagamento(
-                valor=serializer.validated_data['valor'], metodo=serializer.validated_data['metodo'],
+                valor=serializer.validated_data['valor'],
+                metodo=serializer.validated_data['metodo'],
             )
         except Exception as e:
             return Response({'erro': str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -373,13 +465,104 @@ class MensalidadeViewSet(viewsets.ModelViewSet):
     def aplicar_multa(self, request, pk=None):
         """Aplica a multa de atraso se aplicável."""
         mensalidade = self.get_object()
-        aplicada = mensalidade.verificar_e_aplicar_multa()
+        aplicada    = mensalidade.verificar_e_aplicar_multa()
 
         if not aplicada:
             return Response(
                 {'mensagem': 'Multa não aplicável (já pago, isento, dentro do prazo ou já aplicada).'},
                 status=status.HTTP_200_OK
             )
+
+        mensalidade.refresh_from_db()
+        return Response(
+            MensalidadeSerializer(mensalidade).data,
+            status=status.HTTP_200_OK
+        )
+
+    @action(detail=True, methods=['get'], url_path='recibo')
+    def recibo(self, request, pk=None):
+        """
+        Download do PDF do recibo de pagamento.
+
+        GET /api/v1/mensalidades/{id}/recibo/
+        → 200 application/pdf  (recibo existente)
+        → 404 se a mensalidade ainda não está paga ou recibo não existe
+        → 202 se o recibo ainda está a ser gerado (fallback)
+        """
+        from django.http import FileResponse, HttpResponse
+        from financeiro.models import Recibo
+
+        mensalidade = self.get_object()
+
+        if mensalidade.estado != 'PAGO':
+            return Response(
+                {'erro': 'O recibo só está disponível para mensalidades totalmente pagas.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        try:
+            recibo = mensalidade.recibo_emitido
+        except Exception:
+            recibo = mensalidade._gerar_recibo_automatico()
+            if not recibo:
+                return Response(
+                    {'erro': 'Não foi possível gerar o recibo.'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+        if not recibo.arquivo:
+            return Response(
+                {'erro': 'Ficheiro do recibo não encontrado.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        nome_ficheiro = f"recibo_{recibo.codigo_recibo}.pdf"
+        try:
+            response = FileResponse(
+                recibo.arquivo.open('rb'),
+                content_type='application/pdf',
+            )
+            response['Content-Disposition'] = f'inline; filename="{nome_ficheiro}"'
+            return response
+        except Exception as exc:
+            return Response(
+                {'erro': f'Erro ao ler ficheiro: {exc}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['post'], url_path='isentar')
+    def isentar(self, request, pk=None):
+        """
+        Isenta uma mensalidade de pagamento (bolsa, apoio social, etc.).
+
+        POST /api/v1/mensalidades/{id}/isentar/
+        Payload: { "motivo": "Bolsa de estudo 2026" }  (opcional)
+
+        Regras:
+          - Só pode ser aplicado pelo Gestor
+          - Mensalidades já pagas não podem ser isentas
+          - Uma vez isenta, não pode ser revertida via API (usar admin)
+        """
+        mensalidade = self.get_object()
+
+        if mensalidade.estado == 'PAGO':
+            return Response(
+                {'erro': 'Mensalidades já pagas não podem ser isentas.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if mensalidade.estado == 'ISENTO':
+            return Response(
+                {'erro': 'Esta mensalidade já está isenta.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        motivo = request.data.get('motivo', '')
+        mensalidade.estado = 'ISENTO'
+        if motivo:
+            obs_atual = mensalidade.obs or ''
+            mensalidade.obs = f'ISENÇÃO: {motivo}' if not obs_atual else f'{obs_atual} | ISENÇÃO: {motivo}'
+        mensalidade.save(update_fields=['estado', 'obs'])
 
         mensalidade.refresh_from_db()
         return Response(
@@ -427,11 +610,27 @@ class MensalidadeViewSet(viewsets.ModelViewSet):
         })
 
 
+# ──────────────────────────────────────────────
+# FOLHA DE PAGAMENTO
+# ──────────────────────────────────────────────
+
 class FolhaPagamentoViewSet(viewsets.ModelViewSet):
+    """
+    Gestão de folhas salariais.
+
+    GET    /folhas/                      → lista
+    POST   /folhas/                      → criar (admin)
+    GET    /folhas/{id}/                 → detalhe
+    PUT/PATCH /folhas/{id}/              → editar (admin, só PENDENTE)
+    DELETE /folhas/{id}/                 → eliminar (admin, só PENDENTE)
+    POST   /folhas/{id}/confirmar/       → confirmar pagamento
+    GET    /folhas/resumo-mes/           → totais do mês (?mes=M&ano=A)
+    GET    /folhas/pendentes/            → folhas por pagar
+    """
 
     permission_classes = [IsGestor]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['status', 'funcionario', 'mes_referente']
+    filterset_class = FolhaPagamentoFilter
     ordering = ['-mes_referente']
 
     def get_queryset(self):
@@ -445,13 +644,19 @@ class FolhaPagamentoViewSet(viewsets.ModelViewSet):
             return FolhaPagamentoWriteSerializer
         return FolhaPagamentoSerializer
 
+    def perform_update(self, serializer):
+        """Bloqueia edição de folha já paga."""
+        instance = self.get_object()
+        if instance.status == 'PAGO':
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('Não é permitido editar uma folha salarial já paga.')
+        serializer.save()
+
     def perform_destroy(self, instance):
         if instance.status == 'PAGO':
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied('Folhas já pagas não podem ser eliminadas.')
         instance.delete()
-
-    # ── Actions ──────────────────────────────
 
     @action(detail=True, methods=['post'], url_path='confirmar')
     def confirmar(self, request, pk=None):
@@ -506,11 +711,20 @@ class FolhaPagamentoViewSet(viewsets.ModelViewSet):
 
 
 class DespesaVeiculoViewSet(viewsets.ModelViewSet):
+    """
+    Despesas operacionais de veículos.
+
+    GET    /despesas-veiculo/              → lista (filtrar: ?veiculo=<id>)
+    POST   /despesas-veiculo/              → registar
+    GET    /despesas-veiculo/{id}/         → detalhe
+    DELETE /despesas-veiculo/{id}/         → bloqueado (usa estorno)
+    GET    /despesas-veiculo/resumo-frota/ → totais agrupados por veículo e tipo
+    """
 
     serializer_class = DespesaVeiculoSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['veiculo', 'tipo', 'data']
+    filterset_class = DespesaVeiculoFilter
     ordering = ['-data']
 
     def get_queryset(self):
@@ -531,6 +745,63 @@ class DespesaVeiculoViewSet(viewsets.ModelViewSet):
 
     # ── Actions ──────────────────────────────
 
+    @action(detail=True, methods=['post'], url_path='estornar')
+    def estornar(self, request, pk=None):
+        """
+        Cria um estorno de uma despesa de veículo.
+
+        POST /api/v1/despesas-veiculo/{id}/estornar/
+        Payload: { "motivo": "Lançamento duplicado" }
+
+        O estorno:
+          - Cria uma nova DespesaVeiculo com valor negativo
+          - Cria a Transacao de estorno correspondente
+          - Não elimina o registo original (auditoria)
+        """
+        despesa = self.get_object()
+        motivo  = request.data.get('motivo', 'Estorno')
+
+        # Verificar se já foi estornada
+        ja_estornada = DespesaVeiculo.objects.filter(
+            veiculo=despesa.veiculo,
+            tipo=despesa.tipo,
+            valor=-despesa.valor,
+            data=despesa.data,
+        ).exists()
+
+        if ja_estornada:
+            return Response(
+                {'erro': 'Esta despesa já foi estornada.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        from django.db import transaction
+        from financeiro.models import Categoria, Transacao
+
+        with transaction.atomic():
+            # Criar DespesaVeiculo de estorno com valor negativo
+            estorno = DespesaVeiculo.objects.create(
+                veiculo=despesa.veiculo,
+                tipo=despesa.tipo,
+                valor=-despesa.valor,
+                data=despesa.data,
+                km_atual=despesa.km_atual,
+            )
+
+        # Recarregar da BD para incluir a transacao criada pelo save()
+        estorno.refresh_from_db()
+        despesa.refresh_from_db()
+
+        serializer = DespesaVeiculoSerializer(estorno)
+        return Response(
+            {
+                'mensagem': f'Estorno criado com sucesso. Motivo: {motivo}',
+                'estorno':  serializer.data,
+                'original': DespesaVeiculoSerializer(despesa).data,
+            },
+            status=status.HTTP_201_CREATED
+        )
+
     @action(detail=False, methods=['get'], url_path='resumo-frota')
     def resumo_frota(self, request):
         """Totais de despesa por veículo e por tipo."""
@@ -543,12 +814,28 @@ class DespesaVeiculoViewSet(viewsets.ModelViewSet):
         return Response(list(resumo))
 
 
+# ──────────────────────────────────────────────
+# DESPESA GERAL
+# ──────────────────────────────────────────────
+
 class DespesaGeralViewSet(viewsets.ModelViewSet):
+    """
+    Despesas operacionais gerais.
+
+    GET    /despesas-gerais/                  → lista
+    POST   /despesas-gerais/                  → criar
+    GET    /despesas-gerais/{id}/             → detalhe
+    PUT/PATCH /despesas-gerais/{id}/          → editar (só se não paga)
+    DELETE /despesas-gerais/{id}/             → eliminar (só se não paga)
+    POST   /despesas-gerais/{id}/pagar/       → registar pagamento
+    GET    /despesas-gerais/pendentes/        → despesas ainda não pagas
+    GET    /despesas-gerais/resumo/           → totais por categoria
+    """
 
     serializer_class = DespesaGeralSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['pago', 'categoria', 'data_vencimento']
+    filterset_class = DespesaGeralFilter
     search_fields = ['descricao']
     ordering = ['-data_vencimento']
 
@@ -559,8 +846,7 @@ class DespesaGeralViewSet(viewsets.ModelViewSet):
         )
 
     def get_permissions(self):
-        if self.action in ('create', 'update', 'partial_update', 'destroy', 'pagar'):
-            return [IsGestor()]
+        # Todos os endpoints de DespesaGeral são exclusivos ao Gestor
         return [IsGestor()]
 
     # ── Actions ──────────────────────────────
@@ -602,11 +888,23 @@ class DespesaGeralViewSet(viewsets.ModelViewSet):
         return Response(list(resumo))
 
 
+# ──────────────────────────────────────────────
+# BALANÇO MENSAL
+# ──────────────────────────────────────────────
+
 class BalancoMensalViewSet(
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
     viewsets.GenericViewSet,
 ):
+    """
+    Balanços mensais — só leitura e geração.
+
+    GET    /balancos/             → lista histórica
+    GET    /balancos/{id}/        → detalhe de um mês
+    POST   /balancos/gerar/       → calcular e persistir balanço
+    GET    /balancos/dashboard/   → métricas rápidas para o painel principal
+    """
 
     serializer_class = BalancoMensalSerializer
     permission_classes = [IsAuthenticated]
@@ -635,7 +933,8 @@ class BalancoMensalViewSet(
         ser.is_valid(raise_exception=True)
 
         balanco = BalancoMensal.gerar_balanco(
-            ser.validated_data['mes'], ser.validated_data['ano'],
+            ser.validated_data['mes'],
+            ser.validated_data['ano'],
         )
         return Response(
             BalancoMensalSerializer(balanco).data,
@@ -645,37 +944,45 @@ class BalancoMensalViewSet(
     @action(detail=False, methods=['get'], url_path='dashboard')
     def dashboard(self, request):
         """
-        Métricas rápidas para o painel principal:
-        - Balanço do mês actual (ou último fechado)
-        - Mensalidades em atraso
-        - Despesas pendentes
-        - Folhas salariais por pagar
+        Métricas rápidas para o painel principal.
+        Resultado cacheado no Redis por 5 minutos.
+        Cache invalidado automaticamente após pagamentos e alterações.
+
+        Para forçar refresh: GET /api/v1/balancos/dashboard/?refresh=1
         """
+        from django.core.cache import cache
+
+        CACHE_KEY = 'financeiro:dashboard'
+        CACHE_TIMEOUT = 60 * 5
+
+        forcar_refresh = request.query_params.get('refresh') == '1'
+        if not forcar_refresh:
+            dados_cache = cache.get(CACHE_KEY)
+            if dados_cache is not None:
+                dados_cache['cache'] = True
+                return Response(dados_cache)
+
         hoje = date.today()
 
-        # Balanço mais recente
         ultimo_balanco = self.get_queryset().first()
         balanco_data = (
             BalancoMensalSerializer(ultimo_balanco).data
             if ultimo_balanco else None
         )
 
-        # Mensalidades em atraso
         from financeiro.models import Mensalidade
         mensalidades_atraso = Mensalidade.objects.filter(estado='ATRASADO').count()
         total_devedor = Mensalidade.objects.total_devedor_mes(hoje.month, hoje.year)
 
-        # Despesas pendentes
         despesas_pendentes = DespesaGeral.objects.filter(pago=False).aggregate(
             total=Sum('valor'), qtd=Count('id')
         )
 
-        # Folhas por pagar
         folhas_pendentes = FolhaPagamento.objects.filter(status='PENDENTE').aggregate(
             total=Sum('valor_total'), qtd=Count('id')
         )
 
-        return Response({
+        dados = {
             'ultimo_balanco': balanco_data,
             'mensalidades_em_atraso': mensalidades_atraso,
             'total_devedor_mes_atual': total_devedor,
@@ -687,4 +994,18 @@ class BalancoMensalViewSet(
                 'total': folhas_pendentes['total'] or 0,
                 'qtd': folhas_pendentes['qtd'],
             },
-        })
+            'cache': False,
+        }
+
+        cache.set(CACHE_KEY, dados, CACHE_TIMEOUT)
+        return Response(dados)
+
+    @action(detail=False, methods=['post'], url_path='dashboard/invalidar')
+    def dashboard_invalidar(self, request):
+        """
+        Invalida o cache do dashboard manualmente.
+        POST /api/v1/balancos/dashboard/invalidar/
+        """
+        from django.core.cache import cache
+        cache.delete('financeiro:dashboard')
+        return Response({'mensagem': 'Cache do dashboard invalidado.'})

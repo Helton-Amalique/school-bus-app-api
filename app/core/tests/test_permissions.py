@@ -12,8 +12,10 @@ from decimal import Decimal
 
 from django.test import TestCase
 from rest_framework import status
-
+from core.permissions import IsGestorOuMotoristaOuMonitor
+from unittest.mock import MagicMock
 from tests.base import BaseAPITestCase
+
 from tests.factories import (
     criar_aluno,
     criar_config_financeira,
@@ -26,10 +28,6 @@ from tests.factories import (
     criar_veiculo,
 )
 
-
-# ══════════════════════════════════════════════
-# PERMISSÕES UNITÁRIAS
-# ══════════════════════════════════════════════
 
 class IsGestorTests(TestCase):
 
@@ -65,8 +63,7 @@ class IsGestorTests(TestCase):
 class IsGestorOuMotoristaOuMonitorTests(TestCase):
 
     def _permissao(self, role):
-        from core.permissions import IsGestorOuMotoristaOuMonitor
-        from unittest.mock import MagicMock
+
         perm = IsGestorOuMotoristaOuMonitor()
         req  = MagicMock()
         req.user.is_authenticated = True
@@ -75,9 +72,13 @@ class IsGestorOuMotoristaOuMonitorTests(TestCase):
         return perm.has_permission(req, None)
 
     def test_gestor_tem_acesso(self): self.assertTrue(self._permissao('GESTOR'))
+
     def test_motorista_tem_acesso(self): self.assertTrue(self._permissao('MOTORISTA'))
+
     def test_monitor_tem_acesso(self): self.assertTrue(self._permissao('MONITOR'))
+
     def test_encarregado_sem_acesso(self): self.assertFalse(self._permissao('ENCARREGADO'))
+
     def test_aluno_sem_acesso(self): self.assertFalse(self._permissao('ALUNO'))
 
 
@@ -87,16 +88,20 @@ class PodeLerMensalidadeTests(TestCase):
         from core.permissions import PodeLerMensalidade
         from unittest.mock import MagicMock
         perm = PodeLerMensalidade()
-        req  = MagicMock()
+        req = MagicMock()
         req.user.is_authenticated = True
         req.user.is_staff = (role == 'ADMIN')
         req.user.role = role
         return perm.has_permission(req, None)
 
     def test_gestor_pode_ler(self): self.assertTrue(self._permissao('GESTOR'))
+
     def test_encarregado_pode_ler(self): self.assertTrue(self._permissao('ENCARREGADO'))
+
     def test_aluno_pode_ler(self): self.assertTrue(self._permissao('ALUNO'))
+
     def test_motorista_nao_pode(self): self.assertFalse(self._permissao('MOTORISTA'))
+
     def test_monitor_nao_pode(self): self.assertFalse(self._permissao('MONITOR'))
 
 

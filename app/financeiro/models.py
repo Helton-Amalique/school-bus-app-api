@@ -20,7 +20,7 @@ import calendar
 import uuid
 from datetime import date
 from decimal import Decimal
-from core.models import Aluno
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
@@ -29,6 +29,10 @@ from django.db import models, transaction
 from django.db.models import Count, F, Sum
 from django.utils import timezone
 
+
+# ──────────────────────────────────────────────
+# CONFIGURAÇÃO FINANCEIRA  (singleton)
+# ──────────────────────────────────────────────
 
 class ConfiguracaoFinanceira(models.Model):
     """
@@ -89,6 +93,10 @@ class ConfiguracaoFinanceira(models.Model):
         return mes_referente.replace(day=dia_limite)
 
 
+# ──────────────────────────────────────────────
+# CATEGORIA
+# ──────────────────────────────────────────────
+
 class Categoria(models.Model):
     TIPO_CHOICES = [('RECEITA', 'Receita'), ('DESPESA', 'Despesa')]
 
@@ -96,14 +104,18 @@ class Categoria(models.Model):
     tipo = models.CharField(max_length=10, choices=TIPO_CHOICES)
 
     class Meta:
-        verbose_name = "Categoria"
+        verbose_name        = "Categoria"
         verbose_name_plural = "Categorias"
-        ordering = ['nome']
-        unique_together = ('nome', 'tipo')
+        ordering            = ['nome']
+        unique_together     = ('nome', 'tipo')
 
     def __str__(self):
         return f'{self.nome} ({self.get_tipo_display()})'
 
+
+# ──────────────────────────────────────────────
+# TRANSACAO  (ledger central)
+# ──────────────────────────────────────────────
 
 class Transacao(models.Model):
     """
@@ -116,38 +128,48 @@ class Transacao(models.Model):
     """
 
     METODO_PAGAMENTO = [
-        ('DINHEIRO', 'Dinheiro'),
-        ('TRANSFERENCIA', 'Transferência/NIB'),
-        ('CARTAO', 'Cartão de Débito/Crédito'),
-        ('OUTRO', 'Outro'),
+        # Dinheiro e transferência bancária
+        ('DINHEIRO',      'Dinheiro'),
+        ('TRANSFERENCIA', 'Transferência Bancária/NIB'),
+        ('CARTAO',        'Cartão de Débito/Crédito'),
+
+        # Carteiras móveis moçambicanas
+        ('MPESA',         'M-Pesa (Vodacom)'),
+        ('EMOLA',         'e-Mola (Tmcel)'),
+        ('MKESH',         'mKesh (Millennium BIM)'),
+        ('PONTO24',       'Ponto 24 (BCI)'),
+        ('MOVITEL_MONEY', 'Movitel Money'),
+
+        ('OUTRO',         'Outro'),
     ]
     STATUS = [
-        ('PENDENTE', 'Pendente'),
-        ('PAGO', 'Pago'),
-        ('ATRASADO', 'Atrasado'),
-        ('CANCELADO', 'Cancelado'),
+        ('PENDENTE',   'Pendente'),
+        ('PAGO',       'Pago'),
+        ('ATRASADO',   'Atrasado'),
+        ('CANCELADO',  'Cancelado'),
     ]
 
-    descricao = models.CharField(max_length=255)
-    valor = models.DecimalField(max_digits=12, decimal_places=2)
+    descricao       = models.CharField(max_length=255)
+    valor           = models.DecimalField(max_digits=12, decimal_places=2)
     data_vencimento = models.DateField()
-    data_pagamento = models.DateField(null=True, blank=True)
-    categoria = models.ForeignKey(Categoria, on_delete=models.PROTECT)
-    metodo = models.CharField(max_length=20, choices=METODO_PAGAMENTO, default='TRANSFERENCIA')
-    status = models.CharField(max_length=15, choices=STATUS, default='PENDENTE')
-    aluno = models.ForeignKey(
+    data_pagamento  = models.DateField(null=True, blank=True)
+    categoria       = models.ForeignKey(Categoria, on_delete=models.PROTECT)
+    metodo          = models.CharField(max_length=20, choices=METODO_PAGAMENTO, default='TRANSFERENCIA')
+    status          = models.CharField(max_length=15, choices=STATUS, default='PENDENTE')
+    aluno           = models.ForeignKey(
         'core.Aluno',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name='transacoes',
     )
+    # Referência opcional a qualquer objeto externo (FolhaPagamento.pk, etc.)
     referencia_externa_id = models.PositiveBigIntegerField(null=True, blank=True)
 
     class Meta:
-        verbose_name = 'Transação'
+        verbose_name        = 'Transação'
         verbose_name_plural = 'Transações'
-        ordering = ['-data_vencimento']
+        ordering            = ['-data_vencimento']
 
     def clean(self):
         if self.pk:
@@ -181,6 +203,10 @@ class Transacao(models.Model):
         return f"{self.descricao} — {self.valor} MT"
 
 
+# ──────────────────────────────────────────────
+# FUNCIONARIO
+# ──────────────────────────────────────────────
+
 class Funcionario(models.Model):
     """
     Extensão financeira pura de um colaborador.
@@ -213,12 +239,13 @@ class Funcionario(models.Model):
         unique=True,
         help_text="Número de Identificação Tributária (9 dígitos)"
     )
-    salario_base = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    salario_base = models.DecimalField(max_digits=12, decimal_places=2)
     subsidio_transporte = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     ativo = models.BooleanField(default=True)
     data_admissao = models.DateField(auto_now_add=True)
     data_demissao = models.DateField(null=True, blank=True)
 
+    # Ligações aos perfis de core (no máximo uma preenchida)
     motorista_perfil = models.OneToOneField(
         'core.Motorista',
         on_delete=models.SET_NULL,
@@ -250,18 +277,21 @@ class Funcionario(models.Model):
     # ------------------------------------------------------------------
 
     def clean(self):
+        # NUIT: exactamente 9 dígitos numéricos
         if self.nuit and (not self.nuit.isdigit() or len(self.nuit) != 9):
             raise ValidationError({'nuit': "O NUIT deve conter exactamente 9 dígitos numéricos."})
 
+        # Mapeia role → campo de perfil esperado
         PERFIL_POR_ROLE = {
             'MOTORISTA': 'motorista_perfil',
-            'MONITOR': 'monitor_perfil',
-            'GESTOR': 'gestor_perfil',
+            'MONITOR':   'monitor_perfil',
+            'GESTOR':    'gestor_perfil',
         }
         TODOS_PERFIS = list(PERFIL_POR_ROLE.values())
 
         perfis_preenchidos = [c for c in TODOS_PERFIS if getattr(self, c)]
 
+        # Nunca mais do que um perfil preenchido
         if len(perfis_preenchidos) > 1:
             raise ValidationError(
                 "Um funcionário só pode estar associado a um perfil de core."
@@ -281,12 +311,15 @@ class Funcionario(models.Model):
                         f"de {role.title()} associado."
                     )
                 })
+            # Garante que não foi preenchido o campo errado
             for campo in TODOS_PERFIS:
                 if campo != campo_esperado and getattr(self, campo):
                     raise ValidationError({
                         campo: f"Este campo não deve ser preenchido para o role {role}."
                     })
+
         else:
+            # ADMIN, ENCARREGADO, ALUNO — sem perfil associado
             if perfis_preenchidos:
                 raise ValidationError(
                     f"Utilizadores com role {role} não têm perfil de core associado."
@@ -298,7 +331,7 @@ class Funcionario(models.Model):
 
     def delete(self, *args, **kwargs):
         """Soft delete — marca como inactivo e regista a data de demissão."""
-        self.ativo = False
+        self.ativo         = False
         self.data_demissao = date.today()
         self.save()
 
@@ -319,6 +352,10 @@ class Funcionario(models.Model):
     def __str__(self):
         return f"{self.user.nome} — {self.user.get_role_display()}"
 
+
+# ──────────────────────────────────────────────
+# MENSALIDADE MANAGER
+# ──────────────────────────────────────────────
 
 class MensalidadeManager(models.Manager):
 
@@ -353,13 +390,14 @@ class MensalidadeManager(models.Manager):
         O custo de performance é negligenciável para o volume típico
         de alunos de uma escola.
         """
+        from core.models import Aluno
 
         alunos_sem_mensalidade = Aluno.objects.filter(ativo=True).exclude(
             historico_mensalidades__mes_referente__month=mes,
             historico_mensalidades__mes_referente__year=ano,
         )
         data_ref = date(ano, mes, 1)
-        criadas = 0
+        criadas  = 0
 
         with transaction.atomic():
             for aluno in alunos_sem_mensalidade:
@@ -388,6 +426,10 @@ class MensalidadeManager(models.Manager):
             ).count() >= 3
         )
 
+
+# ──────────────────────────────────────────────
+# MENSALIDADE
+# ──────────────────────────────────────────────
 
 class Mensalidade(models.Model):
     """
@@ -495,7 +537,24 @@ class Mensalidade(models.Model):
             )
 
             if obj.estado == 'PAGO' and not Recibo.objects.filter(mensalidade=obj).exists():
-                obj._gerar_recibo_automatico()
+                recibo = obj._gerar_recibo_automatico()
+                # Disparar tasks assíncronas após criação do recibo
+                if recibo:
+                    try:
+                        from financeiro.tasks import (
+                            enviar_notificacao_pagamento,
+                            gerar_pdf_recibo_task,
+                            invalidar_cache_dashboard,
+                        )
+                        # Gerar PDF em background (não bloqueia o request)
+                        gerar_pdf_recibo_task.delay(recibo.pk)
+                        # Notificar encarregado
+                        enviar_notificacao_pagamento.delay(obj.pk)
+                        # Invalidar cache do dashboard
+                        invalidar_cache_dashboard.delay()
+                    except Exception:
+                        # Se Celery não estiver disponível, continua sem erro
+                        pass
 
     # ------------------------------------------------------------------
     # Multas
@@ -516,25 +575,39 @@ class Mensalidade(models.Model):
             return True
         return False
 
+    # ------------------------------------------------------------------
+    # Recibo
+    # ------------------------------------------------------------------
+
     def _gerar_recibo_automatico(self) -> 'Recibo | None':
         if Recibo.objects.filter(mensalidade=self).exists():
             return None
 
-        conteudo = (
-            f"==============================\n"
-            f"      RECIBO DE PAGAMENTO\n"
-            f"==============================\n"
-            f"Aluno  : {self.aluno.user.nome}\n"
-            f"Mês    : {self.mes_referente.strftime('%B de %Y')}\n"
-            f"Valor  : {self.valor_pago_acumulado} MT\n"
-            f"Data   : {date.today().strftime('%d/%m/%Y')}\n"
-            f"Estado : PAGO TOTALMENTE\n"
-            f"==============================\n"
-        )
         recibo = Recibo(mensalidade=self)
-        nome = f"recibo_{self.aluno.id}_{self.mes_referente.strftime('%Y%m')}.txt"
-        recibo.arquivo_pdf.save(nome, ContentFile(conteudo.encode('utf-8')), save=False)
-        recibo.save()
+        recibo.save()  # gera codigo_recibo primeiro
+
+        try:
+            from financeiro.pdf_utils import gerar_pdf_recibo
+            pdf_bytes = gerar_pdf_recibo(self, recibo)
+            nome = f"recibo_{self.aluno.id}_{self.mes_referente.strftime('%Y%m')}.pdf"
+            recibo.arquivo.save(nome, ContentFile(pdf_bytes), save=True)
+        except Exception as exc:
+            # Se o reportlab falhar, guarda fallback em texto
+            import logging
+            logging.getLogger(__name__).error(
+                'Erro ao gerar PDF do recibo %s: %s', recibo.codigo_recibo, exc
+            )
+            conteudo = (
+                f"RECIBO DE PAGAMENTO\n"
+                f"Codigo : {recibo.codigo_recibo}\n"
+                f"Aluno : {self.aluno.user.nome}\n"
+                f"Mes : {self.mes_referente.strftime('%m/%Y')}\n"
+                f"Valor : {self.valor_pago_acumulado} MT\n"
+                f"Data : {date.today().strftime('%d/%m/%Y')}\n"
+            )
+            nome = f"recibo_{self.aluno.id}_{self.mes_referente.strftime('%Y%m')}.txt"
+            recibo.arquivo.save(nome, ContentFile(conteudo.encode('utf-8')), save=True)
+
         return recibo
 
     # ------------------------------------------------------------------
@@ -560,6 +633,10 @@ class Mensalidade(models.Model):
         return f"{self.aluno.user.nome} — {self.mes_referente.strftime('%m/%Y')}"
 
 
+# ──────────────────────────────────────────────
+# LOG DE NOTIFICAÇÕES
+# ──────────────────────────────────────────────
+
 class LogNotificacoes(models.Model):
     mensalidade = models.ForeignKey(Mensalidade, on_delete=models.CASCADE, related_name='notificacoes')
     tipo = models.CharField(max_length=10, choices=[('SMS', 'SMS'), ('EMAIL', 'Email')])
@@ -577,6 +654,10 @@ class LogNotificacoes(models.Model):
         return f"{self.tipo} → {self.destino} ({'✓' if self.sucesso else '✗'})"
 
 
+# ──────────────────────────────────────────────
+# RECIBO
+# ──────────────────────────────────────────────
+
 class Recibo(models.Model):
     mensalidade = models.OneToOneField(
         Mensalidade,
@@ -584,7 +665,7 @@ class Recibo(models.Model):
         related_name='recibo_emitido',
     )
     codigo_recibo = models.CharField(max_length=20, unique=True, editable=False)
-    arquivo_pdf = models.FileField(upload_to='financeiro/recibos/%Y/%m', null=True, blank=True)
+    arquivo = models.FileField(upload_to='financeiro/recibos/%Y/%m', null=True, blank=True)
     data_emissao = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -603,6 +684,10 @@ class Recibo(models.Model):
     def __str__(self):
         return f"Recibo {self.codigo_recibo} — {self.mensalidade.aluno.user.nome}"
 
+
+# ──────────────────────────────────────────────
+# FOLHA DE PAGAMENTO
+# ──────────────────────────────────────────────
 
 class FolhaPagamento(models.Model):
     """
@@ -666,6 +751,10 @@ class FolhaPagamento(models.Model):
         return f"Salário {self.mes_referente.strftime('%m/%Y')} — {self.funcionario.user.nome}"
 
 
+# ──────────────────────────────────────────────
+# DESPESA DE VEÍCULO
+# ──────────────────────────────────────────────
+
 class DespesaVeiculo(models.Model):
     """
     Despesa operacional de um veículo.
@@ -685,7 +774,7 @@ class DespesaVeiculo(models.Model):
         ('LIMPEZA', 'Lavagem/Limpeza'),
     ]
 
-    veiculo = models.ForeignKey(
+    veiculo   = models.ForeignKey(
         'transporte.Veiculo',
         on_delete=models.CASCADE,
         related_name='gastos',
@@ -693,7 +782,7 @@ class DespesaVeiculo(models.Model):
     tipo = models.CharField(max_length=20, choices=TIPO_DESPESA)
     valor = models.DecimalField(max_digits=10, decimal_places=2)
     data = models.DateField(default=date.today)
-    km_atual = models.PositiveIntegerField(
+    km_atual  = models.PositiveIntegerField(
         null=True, blank=True,
         help_text="Quilometragem para controlo de consumo"
     )
@@ -741,6 +830,10 @@ class DespesaVeiculo(models.Model):
     def __str__(self):
         return f"{self.get_tipo_display()} — {self.veiculo.matricula} ({self.valor} MT)"
 
+
+# ──────────────────────────────────────────────
+# DESPESA GERAL
+# ──────────────────────────────────────────────
 
 class DespesaGeral(models.Model):
     """Despesa operacional geral (aluguer, electricidade, etc.)."""
@@ -803,6 +896,10 @@ class DespesaGeral(models.Model):
         return f"{self.descricao} — {self.valor} MT ({estado})"
 
 
+# ──────────────────────────────────────────────
+# BALANÇO MENSAL
+# ──────────────────────────────────────────────
+
 class BalancoMensal(models.Model):
     """Fecho financeiro mensal agregando receitas e despesas."""
 
@@ -845,16 +942,16 @@ class BalancoMensal(models.Model):
             mes_referente__month=mes, mes_referente__year=ano
         )
         previsto = mensalidades.aggregate(s=Sum('valor_base'))['s'] or Decimal('0.00')
-        pagas = (
+        pagas    = (
             mensalidades.filter(estado='PAGO')
             .aggregate(s=Sum('valor_pago_acumulado'))['s'] or Decimal('0.00')
         )
-        gerais = (
+        gerais   = (
             DespesaGeral.objects
             .filter(pago=True, data_vencimento__month=mes, data_vencimento__year=ano)
             .aggregate(s=Sum('valor'))['s'] or Decimal('0.00')
         )
-        frota = (
+        frota    = (
             DespesaVeiculo.objects
             .filter(data__month=mes, data__year=ano)
             .aggregate(s=Sum('valor'))['s'] or Decimal('0.00')
@@ -881,6 +978,9 @@ class BalancoMensal(models.Model):
                     'finalizado': True,
                 }
             )
+
+            # Categoria fixa de tipo RECEITA — o sinal do valor (positivo/negativo)
+            # indica lucro ou prejuízo. Evita criar duas categorias 'Balanço Mensal'.
             cat_resumo, _ = Categoria.objects.get_or_create(
                 nome='Balanço Mensal',
                 tipo='RECEITA',
@@ -908,6 +1008,13 @@ class BalancoMensal(models.Model):
                 )
                 cls.objects.filter(pk=obj.pk).update(transacao=nova_transacao)
                 obj.refresh_from_db()
+
+        # Invalidar cache do dashboard após novo balanço
+        try:
+            from financeiro.tasks import invalidar_cache_dashboard
+            invalidar_cache_dashboard.delay()
+        except Exception:
+            pass
 
         return obj
 

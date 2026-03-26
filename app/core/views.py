@@ -2,17 +2,27 @@
 core/views.py
 =============
 ViewSets DRF para o módulo core.
+
+ViewSets:
+  UserViewSet          — perfil próprio + gestão de utilizadores (admin)
+  EncarregadoViewSet   — CRUD + alunos do encarregado
+  AlunoViewSet         — CRUD + rotas + estado financeiro
+  MotoristaViewSet     — CRUD + veículos + carta
+  GestorViewSet        — CRUD + motoristas supervisionados
+  MonitorViewSet       — CRUD + rota activa
+
+Permissões globais:
+  - Leitura:  IsAuthenticated
+  - Escrita:  IsGestor  (salvo actions explícitas)
+  - /me:      qualquer utilizador autenticado (próprio perfil)
 """
 
-from django.utils import timezone
-from financeiro.models import Mensalidade
-from rest_framework.response import Response
-from rest_framework.decorators import action
 from django.db.models import Count, Prefetch
-from transporte.serializers import RotaSerializer
-from rest_framework.permissions import IsAuthenticated
-from rest_framework import filters, mixins, status, viewsets
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters, mixins, status, viewsets
+from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 
 from core.permissions import (
     IsGestor,
@@ -23,6 +33,7 @@ from core.permissions import (
     PodeLerMensalidade,
     PodeVerRota,
 )
+from rest_framework.response import Response
 
 from core.models import Aluno, Encarregado, Gestor, Monitor, Motorista, User
 from core.serializers import (
@@ -50,10 +61,10 @@ def _perfil_do_user(user):
     Usado nas actions /me dos ViewSets de perfil.
     """
     PERFIL_ATTR = {
-        'ALUNO':       'perfil_aluno',
-        'MOTORISTA':   'perfil_motorista',
-        'MONITOR':     'perfil_monitor',
-        'GESTOR':      'perfil_gestor',
+        'ALUNO': 'perfil_aluno',
+        'MOTORISTA': 'perfil_motorista',
+        'MONITOR': 'perfil_monitor',
+        'GESTOR': 'perfil_gestor',
         'ENCARREGADO': 'perfil_encarregado',
     }
     attr = PERFIL_ATTR.get(user.role)
@@ -67,6 +78,16 @@ class UserViewSet(
     mixins.RetrieveModelMixin,
     viewsets.GenericViewSet,
 ):
+    """
+    Gestão de utilizadores.
+
+    GET  /users/          → lista (admin)
+    GET  /users/{id}/     → detalhe (admin)
+    GET  /users/me/       → perfil próprio
+    POST /users/me/change-password/ → alterar senha
+    POST /users/{id}/desativar/     → desactivar utilizador (admin)
+    POST /users/{id}/ativar/        → reactivar utilizador (admin)
+    """
 
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
@@ -82,9 +103,12 @@ class UserViewSet(
     def get_permissions(self):
         if self.action in ('me', 'change_password'):
             return [IsAuthenticated()]
-        if self.action in ('list', 'retrieve'):
+        if self.action in ('list', 'retrieve', 'testar_sms'):
             return [IsGestor()]
+        # desativar, ativar, criar, editar
         return [IsGestor()]
+
+    # ── /me ──────────────────────────────────
 
     @action(detail=False, methods=['get'], url_path='me')
     def me(self, request):
@@ -103,6 +127,38 @@ class UserViewSet(
         return Response({'mensagem': 'Senha alterada com sucesso.'})
 
     # ── Activação / Desactivação ──────────────
+
+    @action(detail=False, methods=['post'], url_path='testar-sms')
+    def testar_sms(self, request):
+        """
+        Envia um SMS de teste de forma assíncrona via Celery.
+        O request retorna imediatamente com 202 — o Worker processa em background.
+        Verificar os logs do worker para o resultado real.
+
+        POST /api/v1/users/testar-sms/
+        Payload: { "numero": "+258841234567", "mensagem": "Teste" }
+        """
+        numero = request.data.get('numero')
+        mensagem = request.data.get('mensagem', 'Teste do Sistema de Transporte Escolar')
+
+        if not numero:
+            return Response(
+                {'erro': 'Campo "numero" é obrigatório.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        from financeiro.tasks import enviar_sms_manual_task
+        task = enviar_sms_manual_task.delay(numero, mensagem)
+
+        return Response(
+            {
+                'sucesso': True,
+                'mensagem': 'Tarefa de envio enviada para o Worker.',
+                'task_id': task.id,
+                'detalhe': f'SMS para {numero} em processamento. Verifique os logs do worker.',
+            },
+            status=status.HTTP_202_ACCEPTED
+        )
 
     @action(detail=True, methods=['post'], url_path='desativar')
     def desativar(self, request, pk=None):
@@ -157,6 +213,7 @@ class EncarregadoViewSet(viewsets.ModelViewSet):
         if self.action in ('create', 'update', 'partial_update', 'destroy',
                            'desativar', 'ativar'):
             return [IsGestor()]
+        # lista, detalhe, /me, /alunos
         return [IsGestorOuEncarregado()]
 
     def perform_destroy(self, instance):
@@ -217,6 +274,7 @@ class AlunoViewSet(viewsets.ModelViewSet):
             return [IsGestorOuProprioAluno()]
         if self.action == 'financeiro':
             return [IsGestorOuEncarregado()]
+        # list, me, rotas
         return [IsGestorOuMotoristaOuMonitor()]
 
     def perform_destroy(self, instance):
@@ -254,6 +312,7 @@ class AlunoViewSet(viewsets.ModelViewSet):
         Resumo financeiro do aluno: mensalidades em atraso,
         saldo devedor e estado de acesso.
         """
+        from financeiro.models import Mensalidade
         aluno = self.get_object()
 
         mensalidades = Mensalidade.objects.filter(aluno=aluno).order_by('-mes_referente')
@@ -274,6 +333,7 @@ class AlunoViewSet(viewsets.ModelViewSet):
 
 
 class MotoristaViewSet(viewsets.ModelViewSet):
+
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['ativo']
@@ -300,6 +360,7 @@ class MotoristaViewSet(viewsets.ModelViewSet):
             return [IsGestor()]
         if self.action in ('me', 'veiculos', 'carta_a_vencer'):
             return [IsProprioPerfilOuGestor()]
+        # list, retrieve
         return [IsGestor()]
 
     def perform_destroy(self, instance):
@@ -395,7 +456,7 @@ class GestorViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='adicionar-motorista')
     def adicionar_motorista(self, request, pk=None):
         """Associa um motorista activo à supervisão deste gestor."""
-        gestor = self.get_object()
+        gestor     = self.get_object()
         motorista_id = request.data.get('motorista_id')
 
         if not motorista_id:
@@ -422,7 +483,6 @@ class GestorViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='remover-motorista')
     def remover_motorista(self, request, pk=None):
-        """Remove um motorista da supervisão deste gestor."""
         gestor = self.get_object()
         motorista_id = request.data.get('motorista_id')
 
@@ -474,6 +534,7 @@ class MonitorViewSet(viewsets.ModelViewSet):
             return [IsGestor()]
         if self.action == 'me':
             return [IsAuthenticated()]
+        # list, retrieve, rota_ativa
         return [IsGestorOuMotoristaOuMonitor()]
 
     def perform_destroy(self, instance):
@@ -497,8 +558,9 @@ class MonitorViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'], url_path='rota')
     def rota_ativa(self, request, pk=None):
         """Rota activa actual do monitor."""
+        from transporte.serializers import RotaSerializer
         monitor = self.get_object()
-        rota = monitor.rota_ativa
+        rota    = monitor.rota_ativa
 
         if not rota:
             return Response(

@@ -1,6 +1,15 @@
-# version: "3.9"
+# docker-compose.yml
+# Sistema de Transporte Escolar
+#
+# Serviços:
+#   app      — Django (runserver)
+#   db       — PostgreSQL 13
+#   redis    — Broker para o Celery
+#   worker   — Celery worker (executa tasks assíncronas)
+#   beat     — Celery beat (agenda tasks periódicas)
 
 services:
+
   app:
     build:
       context: .
@@ -10,17 +19,24 @@ services:
       - "8000:8000"
     volumes:
       - ./app:/app
+      - dev-media-data:/app/media
     command: >
       sh -c "python manage.py wait_for_db &&
              python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8000"
+    env_file:
+      - .env
     environment:
       - DB_HOST=db
       - DB_NAME=devdb
       - DB_USER=xipoko
       - DB_PASS=amalekita
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
       - db
+      - redis
 
   db:
     image: postgres:13-alpine
@@ -31,5 +47,68 @@ services:
       - POSTGRES_USER=xipoko
       - POSTGRES_PASSWORD=amalekita
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - dev-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build:
+      context: .
+      args:
+        - DEV=true
+    volumes:
+      - ./app:/app
+      - dev-media-data:/app/media
+    command: >
+      sh -c "python manage.py wait_for_db &&
+             celery -A app worker --loglevel=info --concurrency=2"
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=db
+      - DB_NAME=devdb
+      - DB_USER=xipoko
+      - DB_PASS=amalekita
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+
+  beat:
+    build:
+      context: .
+      args:
+        - DEV=true
+    volumes:
+      - ./app:/app
+    command: >
+      sh -c "python manage.py wait_for_db &&
+             celery -A app beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler"
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=db
+      - DB_NAME=devdb
+      - DB_USER=xipoko
+      - DB_PASS=amalekita
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+
 volumes:
   dev-db-data:
+  dev-redis-data:
+  dev-media-data:

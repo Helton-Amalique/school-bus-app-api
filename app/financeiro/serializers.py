@@ -1,5 +1,26 @@
 """
 financeiro/serializers.py
+=========================
+Serializers DRF para o módulo financeiro.
+
+Serializers:
+  ConfiguracaoFinanceiraSerializer   — leitura/edição do singleton
+  CategoriaSerializer                — CRUD de categorias
+  TransacaoSerializer                — leitura de transacções
+  TransacaoWriteSerializer           — criação/edição de transacções
+  FuncionarioSerializer              — leitura de funcionário
+  FuncionarioWriteSerializer         — criação/edição
+  MensalidadeSerializer              — leitura completa
+  MensalidadeListSerializer          — listagem leve
+  PagamentoSerializer                — payload para registar pagamento
+  FolhaPagamentoSerializer           — leitura de folha salarial
+  FolhaPagamentoWriteSerializer      — criação de folha salarial
+  ConfirmarPagamentoSerializer       — payload para confirmar folha
+  DespesaVeiculoSerializer           — leitura/criação de despesas de frota
+  DespesaGeralSerializer             — leitura/criação de despesas gerais
+  PagamentoDespesaGeralSerializer    — payload para pagar despesa geral
+  BalancoMensalSerializer            — leitura de balanço mensal
+  GerarBalancoSerializer             — payload para gerar balanço
 """
 
 from datetime import date
@@ -21,11 +42,19 @@ from financeiro.models import (
 )
 
 
+# ──────────────────────────────────────────────
+# CONFIGURAÇÃO FINANCEIRA
+# ──────────────────────────────────────────────
+
 class ConfiguracaoFinanceiraSerializer(serializers.ModelSerializer):
     class Meta:
         model = ConfiguracaoFinanceira
         fields = ('id', 'dia_vencimento', 'dia_limite_pagamento', 'valor_multa_fixa')
 
+
+# ──────────────────────────────────────────────
+# CATEGORIA
+# ──────────────────────────────────────────────
 
 class CategoriaSerializer(serializers.ModelSerializer):
     class Meta:
@@ -45,6 +74,10 @@ class CategoriaSerializer(serializers.ModelSerializer):
         return data
 
 
+# ──────────────────────────────────────────────
+# TRANSACAO
+# ──────────────────────────────────────────────
+
 class TransacaoSerializer(serializers.ModelSerializer):
     """Leitura completa de uma transacção."""
 
@@ -56,12 +89,7 @@ class TransacaoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Transacao
         fields = (
-            'id', 'descricao', 'valor',
-            'categoria', 'categoria_nome', 'tipo',
-            'metodo', 'status', 'is_overdue',
-            'data_vencimento', 'data_pagamento',
-            'aluno', 'aluno_nome',
-            'referencia_externa_id',
+            'id', 'descricao', 'valor', 'categoria', 'categoria_nome', 'tipo', 'metodo', 'status', 'is_overdue', 'data_vencimento', 'data_pagamento', 'aluno', 'aluno_nome', 'referencia_externa_id',
         )
 
     def get_aluno_nome(self, obj):
@@ -70,8 +98,9 @@ class TransacaoSerializer(serializers.ModelSerializer):
 
 class TransacaoWriteSerializer(serializers.ModelSerializer):
     """Criação/edição manual de transacções."""
+
     class Meta:
-        model = Transacao
+        model  = Transacao
         fields = (
             'descricao', 'valor', 'categoria',
             'metodo', 'status',
@@ -97,6 +126,10 @@ class TransacaoWriteSerializer(serializers.ModelSerializer):
         return data
 
 
+# ──────────────────────────────────────────────
+# FUNCIONARIO
+# ──────────────────────────────────────────────
+
 class FuncionarioSerializer(serializers.ModelSerializer):
     """Leitura completa de funcionário."""
 
@@ -121,13 +154,11 @@ class FuncionarioSerializer(serializers.ModelSerializer):
 
 class FuncionarioWriteSerializer(serializers.ModelSerializer):
     """Criação/edição de funcionário."""
+
     class Meta:
         model = Funcionario
         fields = (
-            'user', 'nuit',
-            'salario_base', 'subsidio_transporte',
-            'ativo',
-            'motorista_perfil', 'monitor_perfil', 'gestor_perfil',
+            'user', 'nuit', 'salario_base', 'subsidio_transporte', 'ativo', 'motorista_perfil', 'monitor_perfil', 'gestor_perfil',
         )
 
     def validate_nuit(self, value):
@@ -167,15 +198,20 @@ class FuncionarioWriteSerializer(serializers.ModelSerializer):
         return data
 
 
+# ──────────────────────────────────────────────
+# MENSALIDADE
+# ──────────────────────────────────────────────
+
 class ReciboSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recibo
-        fields = ('id', 'codigo_recibo', 'arquivo_pdf', 'data_emissao')
+        fields = ('id', 'codigo_recibo', 'arquivo', 'data_emissao')
         read_only_fields = fields
 
 
 class MensalidadeSerializer(serializers.ModelSerializer):
     """Leitura completa de mensalidade."""
+
     aluno_nome = serializers.CharField(source='aluno.user.nome', read_only=True)
     mes_display = serializers.SerializerMethodField()
     valor_total_devido = serializers.DecimalField(
@@ -188,9 +224,14 @@ class MensalidadeSerializer(serializers.ModelSerializer):
     recibo = ReciboSerializer(source='recibo_emitido', read_only=True)
 
     class Meta:
-        model = Mensalidade
+        model  = Mensalidade
         fields = (
-            'id', 'aluno', 'aluno_nome', 'mes_referente', 'mes_display', 'nr_fatura', 'valor_base', 'multa_atraso', 'desconto', 'valor_total_devido', 'valor_pago_acumulado', 'saldo_devedor', 'data_ultimo_pagamento', 'estado', 'estado_display', 'obs',
+            'id', 'aluno', 'aluno_nome',
+            'mes_referente', 'mes_display', 'nr_fatura',
+            'valor_base', 'multa_atraso', 'desconto',
+            'valor_total_devido', 'valor_pago_acumulado', 'saldo_devedor',
+            'data_ultimo_pagamento',
+            'estado', 'estado_display', 'obs',
             'recibo',
         )
         read_only_fields = (
@@ -212,7 +253,7 @@ class MensalidadeListSerializer(serializers.ModelSerializer):
     )
 
     class Meta:
-        model = Mensalidade
+        model  = Mensalidade
         fields = (
             'id', 'aluno', 'aluno_nome',
             'mes_referente', 'mes_display',
@@ -225,13 +266,15 @@ class MensalidadeListSerializer(serializers.ModelSerializer):
 
 class PagamentoSerializer(serializers.Serializer):
     """Payload para registar um pagamento (parcial ou total) de mensalidade."""
-    valor = serializers.DecimalField(
+
+    valor  = serializers.DecimalField(
         max_digits=10, decimal_places=2,
         min_value=Decimal('0.01'),
     )
     metodo = serializers.ChoiceField(choices=Transacao.METODO_PAGAMENTO)
 
     def validate_valor(self, value):
+        # Garante que não paga mais do que o saldo em dívida
         mensalidade = self.context.get('mensalidade')
         if mensalidade and value > mensalidade.saldo_devedor:
             raise serializers.ValidationError(
@@ -244,7 +287,7 @@ class MensalidadeWriteSerializer(serializers.ModelSerializer):
     """Criação e ajuste manual de mensalidade (admin)."""
 
     class Meta:
-        model = Mensalidade
+        model  = Mensalidade
         fields = (
             'aluno', 'mes_referente',
             'valor_base', 'multa_atraso', 'desconto',
@@ -278,6 +321,10 @@ class MensalidadeWriteSerializer(serializers.ModelSerializer):
         return data
 
 
+# ──────────────────────────────────────────────
+# FOLHA DE PAGAMENTO
+# ──────────────────────────────────────────────
+
 class FolhaPagamentoSerializer(serializers.ModelSerializer):
     """Leitura de folha salarial."""
 
@@ -287,7 +334,7 @@ class FolhaPagamentoSerializer(serializers.ModelSerializer):
     transacao_info = TransacaoSerializer(source='transacao_vinculada', read_only=True)
 
     class Meta:
-        model = FolhaPagamento
+        model  = FolhaPagamento
         fields = (
             'id', 'funcionario', 'funcionario_nome',
             'mes_referente', 'mes_display',
@@ -304,7 +351,7 @@ class FolhaPagamentoWriteSerializer(serializers.ModelSerializer):
     """Criação de folha salarial."""
 
     class Meta:
-        model = FolhaPagamento
+        model  = FolhaPagamento
         fields = ('funcionario', 'mes_referente', 'valor_total')
 
     def validate_mes_referente(self, value):
@@ -340,6 +387,10 @@ class ConfirmarPagamentoSerializer(serializers.Serializer):
     )
 
 
+# ──────────────────────────────────────────────
+# DESPESA VEÍCULO
+# ──────────────────────────────────────────────
+
 class DespesaVeiculoSerializer(serializers.ModelSerializer):
     """Leitura e criação de despesas de frota."""
 
@@ -348,15 +399,14 @@ class DespesaVeiculoSerializer(serializers.ModelSerializer):
     transacao_info = TransacaoSerializer(source='transacao', read_only=True)
 
     class Meta:
-        model = DespesaVeiculo
+        model  = DespesaVeiculo
         fields = (
-            'id', 'veiculo', 'veiculo_matricula',
-            'tipo', 'tipo_display', 'valor', 'data', 'km_atual',
-            'transacao', 'transacao_info',
+            'id', 'veiculo', 'veiculo_matricula', 'tipo', 'tipo_display', 'valor', 'data', 'km_atual', 'transacao', 'transacao_info',
         )
         read_only_fields = ('transacao', 'transacao_info')
 
     def validate(self, data):
+        # Impede edição de valor em despesa existente
         if self.instance:
             novo_valor = data.get('valor')
             if novo_valor and novo_valor != self.instance.valor:
@@ -365,6 +415,10 @@ class DespesaVeiculoSerializer(serializers.ModelSerializer):
                 )
         return data
 
+
+# ──────────────────────────────────────────────
+# DESPESA GERAL
+# ──────────────────────────────────────────────
 
 class DespesaGeralSerializer(serializers.ModelSerializer):
     """Leitura e criação de despesas gerais."""
@@ -375,9 +429,7 @@ class DespesaGeralSerializer(serializers.ModelSerializer):
     class Meta:
         model = DespesaGeral
         fields = (
-            'id', 'descricao', 'valor', 'data_vencimento',
-            'pago', 'categoria', 'categoria_nome',
-            'transacao', 'transacao_info',
+            'id', 'descricao', 'valor', 'data_vencimento', 'pago', 'categoria', 'categoria_nome', 'transacao', 'transacao_info',
         )
         read_only_fields = ('pago', 'transacao', 'transacao_info')
 
@@ -400,6 +452,10 @@ class PagamentoDespesaGeralSerializer(serializers.Serializer):
     )
 
 
+# ──────────────────────────────────────────────
+# BALANÇO MENSAL
+# ──────────────────────────────────────────────
+
 class BalancoMensalSerializer(serializers.ModelSerializer):
     """Leitura de balanço mensal com totais e resultado."""
 
@@ -409,7 +465,7 @@ class BalancoMensalSerializer(serializers.ModelSerializer):
     transacao_info = TransacaoSerializer(source='transacao', read_only=True)
 
     class Meta:
-        model = BalancoMensal
+        model  = BalancoMensal
         fields = (
             'id', 'mes_referencia', 'mes_display', 'data_fecho',
             'total_receitas_previstas', 'total_receitas_pagas',

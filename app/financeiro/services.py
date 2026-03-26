@@ -14,10 +14,6 @@ from financeiro.models import (
 )
 
 
-# =============================================================================
-# NOTIFICAÇÕES
-# =============================================================================
-
 def enviar_notificacao_multa(mensalidade):
     """
     Envia SMS e/ou Email ao encarregado informando sobre a multa aplicada.
@@ -35,7 +31,6 @@ def enviar_notificacao_multa(mensalidade):
         f"Novo total: {novo_total} MT. Evite cortes no serviço."
     )
 
-    # Envio de SMS
     if encarregado.telefone:
         sucesso_sms = True
         resposta_sms = ""
@@ -53,7 +48,6 @@ def enviar_notificacao_multa(mensalidade):
             resposta_server=resposta_sms,
         )
 
-    # Envio de Email
     if encarregado.user.email:
         sucesso_email = True
         resposta_email = ""
@@ -71,10 +65,6 @@ def enviar_notificacao_multa(mensalidade):
             resposta_server=resposta_email,
         )
 
-
-# =============================================================================
-# FOLHA SALARIAL
-# =============================================================================
 
 def gerar_folha_mensal(mes, ano):
     """
@@ -113,9 +103,6 @@ def gerar_folha_mensal(mes, ano):
             FolhaPagamento.objects.bulk_create(novas_folhas)
     return len(novas_folhas)
 
-# =============================================================================
-# MENSALIDADES
-# =============================================================================
 
 def gerar_mensalidade_mes(mes, ano):
     """
@@ -124,10 +111,6 @@ def gerar_mensalidade_mes(mes, ano):
 
     return Mensalidade.objects.gerar_mensalidades_mes(mes, ano)
 
-
-# =============================================================================
-# MULTAS
-# =============================================================================
 
 def aplicar_multas_mensais(mes, ano):
     """
@@ -155,9 +138,6 @@ def aplicar_multas_mensais(mes, ano):
                 print(f"[AVISO] Falha ao notificar mensalidade {mensalidade.pk}: {e}")
     return aplicadas
 
-# =============================================================================
-# RELATÓRIO DE ESTADO MENSAL
-# =============================================================================
 
 def resumo_financeiro_mes(mes, ano):
     """

@@ -30,7 +30,7 @@ from financeiro.models import (
 
 
 def _badge(valor, label_sim, label_nao, cor_sim='#16a34a', cor_nao='#dc2626'):
-    cor   = cor_sim if valor else cor_nao
+    cor = cor_sim if valor else cor_nao
     label = label_sim if valor else label_nao
     return format_html('<span style="color:{};font-weight:600;">● {}</span>', cor, label)
 
@@ -136,9 +136,7 @@ class TransacaoAdmin(admin.ModelAdmin):
 
 @admin.register(Funcionario)
 class FuncionarioAdmin(admin.ModelAdmin):
-    list_display = ('nome_display', 'role_display', 'nuit', 'salario_base', 'subsidio_transporte', 'salario_total_display',
-        'ativo_display',
-    )
+    list_display = ('nome_display', 'role_display', 'nuit', 'salario_base', 'subsidio_transporte', 'salario_total_display', 'ativo_display',)
     list_filter = ('ativo', 'user__role')
     search_fields = ('user__nome', 'user__email', 'nuit')
     readonly_fields = (
@@ -202,7 +200,7 @@ class ReciboInline(admin.StackedInline):
     model= Recibo
     extra = 0
     can_delete = False
-    readonly_fields = ('codigo_recibo', 'arquivo_pdf', 'data_emissao')
+    readonly_fields = ('codigo_recibo', 'arquivo', 'data_emissao')
 
     def has_add_permission(self, request, obj=None):
         return False
@@ -233,7 +231,7 @@ class MensalidadeAdmin(admin.ModelAdmin):
         ('Valores', {
             'fields': (
                 'valor_base', 'multa_atraso', 'desconto',
-                'valor_total_devido',
+                    'valor_total_devido',
                 'valor_pago_acumulado', 'saldo_devedor',
                 'data_ultimo_pagamento',
             )

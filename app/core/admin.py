@@ -18,6 +18,7 @@ def _badge_ativo(obj):
 
 _badge_ativo.short_description = "Estado"
 
+
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     """
